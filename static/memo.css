@@ -51,6 +51,7 @@
 
         select,
         input[type="text"],
+        input[type="number"],
         input[type="date"] {
             background: #0b1222;
             border: 1px solid var(--border);
@@ -58,6 +59,20 @@
             padding: 8px 10px;
             border-radius: 10px;
             outline: none
+        }
+        
+        input[type="file"]{
+            display: none
+        }
+
+        label[type="button"] {
+            font-variant-numeric: tabular-nums;
+            color: #cbd5e1;
+            background: #182235;
+            border: 1px solid var(--border);
+            padding: 8px 12px;
+            border-radius: 10px;
+            cursor: pointer
         }
 
         button {
@@ -236,6 +251,34 @@
             gap: 14px
         }
 
+        /* Keep the header & action bar pinned; scroll only the content area */
+        dialog { max-width: 960px; width: min(92vw, 960px); }
+        .modal header,
+        .actions { position: sticky; z-index: 2; }
+        .modal header { top: 0; }
+        .actions     { bottom: 0; }
+
+        /* Scroll only the inner content; cap height, then style the scrollbar */
+        .modal .content {
+            max-height: min(72vh, 780px);
+            overflow: auto;
+            scrollbar-width: thin;                       /* Firefox */
+            scrollbar-color: #243046 #0b1222;
+        }
+        .modal .content::-webkit-scrollbar { width: 10px; height: 10px; }
+        .modal .content::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #1e293b, #0f172a);
+            border: 2px solid #0b1222; border-radius: 10px;
+        }
+        .modal .content::-webkit-scrollbar-track { background: #0b1222; }
+
+        /* Make the two-column rows wrap fluidly */
+        .rowgrid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 10px;
+        }
+
         .row {
             display: grid;
             gap: 8px
@@ -335,6 +378,7 @@
             grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
             gap: 10px
         }
+        
 
         .dragitem {
             position: relative;
@@ -367,6 +411,25 @@
         .dragitem.dragging .handle {
             cursor: grabbing
         }
+        .dragitem .delimg {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            border: 1px solid var(--border);
+            background: rgba(0,0,0,.6);
+            color: #fff;
+            width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            cursor: pointer;
+            font-weight: 700;
+        }
+        .dragitem .delimg:hover { background: rgba(0,0,0,.85); }
+        .dragitem.dragging .delimg { pointer-events: none; opacity: .5; }
 
         /* Lightbox */
         .lightbox {
@@ -486,7 +549,9 @@
             align-items: center
         }
 
-        .tagrow input[type=text] {
+        .tagrow 
+        input[type=text],
+        input[type="number"] {
             background: #0b1222;
             border: 1px solid var(--border);
             color: #e5e7eb;
@@ -907,6 +972,7 @@
             button,
             select,
             input[type="text"],
+            input[type="number"],
             input[type="date"] {
                 min-height: 42px;
             }

@@ -521,7 +521,20 @@ function rebuildDragGrid() {
         const d = document.createElement('div');
         d.className = 'dragitem';
         d.draggable = true;
-        d.innerHTML = `<span class="handle" title="Drag to reorder">⋮⋮ ${idx + 1}</span><img src="${it.src}" alt="">`;
+        d.innerHTML = `
+                <button class="delimg" title="Remove image" aria-label="Remove image" data-idx="${idx}">×</button>
+                <span class="handle" title="Drag to reorder">⋮⋮ ${idx + 1}</span>
+                <img src="${it.src}" alt="">
+            `;
+        d.querySelector('.delimg').addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            const i = idx;
+            const item = modalImages[i];
+            // If it was a newly added blob URL, free it
+            try { if (item?.file && item?.src?.startsWith?.('blob:')) URL.revokeObjectURL(item.src); } catch {}
+            modalImages.splice(i, 1);
+            rebuildDragGrid();
+        });
         d.addEventListener('dragstart', (ev) => { dragSrcIdx = idx; d.classList.add('dragging'); ev.dataTransfer.effectAllowed = 'move'; });
         d.addEventListener('dragend', () => { d.classList.remove('dragging'); dragSrcIdx = null; });
         d.addEventListener('dragover', (ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; });
