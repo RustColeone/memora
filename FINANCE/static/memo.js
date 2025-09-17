@@ -83,7 +83,8 @@ const els = {
     price: $('#price'),              // finance
     tax: $('#tax'),                  // finance
     adjustment: $('#adjustment'),    // finance
-    total: $('#total')
+    total: $('#total'),
+    dropzone: $('#dropzone')
 };
 
 // No-op for apps that didn't include this in the stripped version
@@ -310,6 +311,15 @@ function todayFolder(ts) {
     const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${dd}`;
 }
+function todayLocalYMD() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+
 
 // =======================
 // UI helpers
@@ -361,11 +371,11 @@ function formatMoney(val, isTax = false) {
     if (val === '' || val == null) return '';
     const s = String(val).trim();
     if (isTax && s.endsWith('%')) {
-      return s; // leave percentage taxes as-is
+        return s; // leave percentage taxes as-is
     }
     // optional: you can parseFloat and toFixed(2) if you want consistent cents
     return `$${s}`;
-  }
+}
 function computeTotal(price, tax, adjustment) {
     let priceVal = parseFloat(price) || 0;
     let adjVal = parseFloat(adjustment) || 0;
@@ -582,7 +592,7 @@ function openEntryModal(entry = null) {
     else if (els.categoryInput) { els.categoryInput.value = settings.categories[0] || 'Uncategorized'; }
 
     //These new fields are added for financing only
-    if (els.entryDate) els.entryDate.value = entry ? (entry.purchaseDate || (entry.ts ? (new Date(entry.ts)).toISOString().slice(0, 10) : "")) : (new Date()).toISOString().slice(0, 10);
+    if (els.entryDate) els.entryDate.value = entry ? (entry.purchaseDate || (entry.ts ? (new Date(entry.ts)).toISOString().slice(0, 10) : "")) : todayLocalYMD();
     if (els.price) els.price.value = entry ? (entry.price ?? "") : "";
     if (els.tax) els.tax.value = entry ? (entry.tax ?? "") : "";
     if (els.adjustment) els.adjustment.value = entry ? (entry.adjustment ?? "") : "";
@@ -707,15 +717,49 @@ function rebuildDragGrid() {
         els.dragGrid.appendChild(d);
     });
 }
+
+function addImageFiles(files) {
+    for (const f of files) {
+        if (!f || !f.type?.startsWith('image/')) continue;
+        const url = URL.createObjectURL(f);
+        modalImages.push({ src: url, file: f, existing: false });
+    }
+    rebuildDragGrid();
+}
+
 if (els.images) {
-    els.images.addEventListener('change', async () => {
-        for (const f of els.images.files) {
-            const url = URL.createObjectURL(f);
-            modalImages.push({ src: url, file: f, existing: false });
-        }
-        rebuildDragGrid();
+    els.images.addEventListener('change', () => {
+        addImageFiles(els.images.files);
+        els.images.value = ''; // allow selecting same file again
     });
 }
+
+if (els.dropzone && els.images) {
+    // Click (also opens camera on mobile because of capture="environment")
+    els.dropzone.addEventListener('click', () => els.images.click());
+
+    // Drag & drop
+    els.dropzone.addEventListener('dragover', (e) => { e.preventDefault(); els.dropzone.classList.add('dragover'); });
+    els.dropzone.addEventListener('dragleave', () => els.dropzone.classList.remove('dragover'));
+    els.dropzone.addEventListener('drop', (e) => {
+        e.preventDefault(); els.dropzone.classList.remove('dragover');
+        addImageFiles(e.dataTransfer?.files || []);
+    });
+
+    // Paste anywhere (or restrict to the dropzone by attaching to dropzone instead of document)
+    document.addEventListener('paste', (e) => {
+        const items = e.clipboardData?.items || [];
+        const files = [];
+        for (const it of items) {
+            if (it.kind === 'file') {
+                const f = it.getAsFile();
+                if (f && f.type?.startsWith('image/')) files.push(f);
+            }
+        }
+        if (files.length) addImageFiles(files);
+    });
+}
+
 
 // ============= Save / Delete =============
 if (els.cancelBtn) els.cancelBtn.addEventListener('click', () => els.entryDlg.close());

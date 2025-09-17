@@ -5,6 +5,7 @@ from flask import Flask, request, jsonify, render_template, send_from_directory
 from werkzeug.utils import secure_filename
 from datetime import datetime
 from threading import Lock
+import hashlib
 
 # --- Configuration ---
 USE_SERVER_BACKEND = os.environ.get("USE_SERVER_BACKEND", "true").lower() == "true"
@@ -12,6 +13,7 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 DATA_FILE = os.path.join(DATA_DIR, 'memos.json')
+HASHBOOK_FILE = os.path.join(DATA_DIR, 'hashbook.json')
 
 # Initialize Flask app
 app = Flask(__name__, static_folder='static', template_folder='templates')
@@ -24,6 +26,9 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 if not os.path.exists(DATA_FILE):
     with open(DATA_FILE, 'w', encoding='utf-8') as f:
         f.write("[]")
+if not os.path.exists(HASHBOOK_FILE):
+    with open(HASHBOOK_FILE, 'w', encoding='utf-8') as f:
+        f.write("{}")
 
 _lock = Lock()
 
@@ -50,6 +55,168 @@ def save_memos(memos):
     with _lock:
         _write_json(DATA_FILE, memos)
 
+# Helper Function to delete file
+def delete_upload_url(image_url: str):
+    """
+    Decrement refcount in hashbook for this image; delete only when it reaches zero.
+    If the image isn't in the hashbook, delete the file directly (legacy).
+    Also cleans empty date folders.
+    """
+    if not image_url or not image_url.startswith('/uploads/'):
+        return
+
+    rel = os.path.normpath(image_url.lstrip('/'))
+    full_path = os.path.join(app.root_path, rel)
+
+    # If file doesn't exist, just clean potential stale hashbook entries
+    if not os.path.exists(full_path):
+        book = get_hashbook()
+        dirty = False
+        for h, rec in list(book.items()):
+            if isinstance(rec, dict) and rec.get("url") == image_url:
+                del book[h]
+                dirty = True
+        if dirty:
+            save_hashbook(book)
+        return
+
+    # Compute hash of the on-disk file to find the right record
+    try:
+        file_hash = compute_file_sha256_from_path(full_path)
+    except Exception as e:
+        print(f"Error hashing for deletion {full_path}: {e}")
+        file_hash = None
+
+    book = get_hashbook()
+
+    if file_hash and file_hash in book and isinstance(book[file_hash], dict):
+        rec = book[file_hash]
+        rec['count'] = max(0, int(rec.get('count', 0)) - 1)
+        if rec['count'] == 0:
+            # Safe to remove file and mapping
+            try:
+                os.remove(full_path)
+            except OSError as e:
+                print(f"Error deleting file {full_path}: {e}")
+            book.pop(file_hash, None)
+            save_hashbook(book)
+
+            # Attempt to remove empty folders
+            try:
+                os.removedirs(os.path.dirname(full_path))
+            except OSError:
+                pass
+        else:
+            # Still in use; update count only
+            book[file_hash] = rec
+            save_hashbook(book)
+    else:
+        # Not tracked in hashbook (legacy). Delete the file.
+        try:
+            os.remove(full_path)
+        except OSError as e:
+            print(f"Error deleting file {full_path}: {e}")
+        # Best-effort: clean any stale entries pointing to this URL
+        dirty = False
+        for h, rec in list(book.items()):
+            if isinstance(rec, dict) and rec.get("url") == image_url:
+                del book[h]; dirty = True
+        if dirty:
+            save_hashbook(book)
+        try:
+            os.removedirs(os.path.dirname(full_path))
+        except OSError:
+            pass
+
+
+# Helper Address Book
+
+def read_key_json(path):
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            obj = json.load(f)
+            return obj if isinstance(obj, dict) else {}
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def write_key_json(path, obj):
+    tmp = path + ".tmp"
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(obj, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, path)
+
+def get_hashbook():
+    with _lock:
+        return read_key_json(HASHBOOK_FILE)
+
+def save_hashbook(book):
+    with _lock:
+        write_key_json(HASHBOOK_FILE, book)
+
+def compute_filestorage_sha256(file_storage, chunk_size=1024*1024):
+    """
+    Compute sha256 of a Werkzeug FileStorage without consuming it permanently.
+    Resets the stream to position 0 afterwards.
+    """
+    h = hashlib.sha256()
+    stream = file_storage.stream
+    try:
+        pos = stream.tell()
+    except Exception:
+        pos = None
+
+    # Ensure start
+    try:
+        stream.seek(0)
+    except Exception:
+        pass
+
+    while True:
+        chunk = stream.read(chunk_size)
+        if not chunk:
+            break
+        h.update(chunk)
+
+    # Reset for later save()
+    try:
+        stream.seek(0 if pos is None else pos)
+    except Exception:
+        pass
+
+    return h.hexdigest()
+
+def compute_file_sha256_from_path(path, chunk_size=1024*1024):
+    h = hashlib.sha256()
+    with open(path, 'rb') as f:
+        while True:
+            chunk = f.read(chunk_size)
+            if not chunk:
+                break
+            h.update(chunk)
+    return h.hexdigest()
+
+def is_file_in_hashbook(file_storage):
+    """
+    Returns (True, file_hash, record) if duplicate and file exists,
+    where record = {"url": ..., "count": int}.
+    Otherwise returns (False, file_hash, None) and cleans stale mappings.
+    """
+    file_hash = compute_filestorage_sha256(file_storage)
+    book = get_hashbook()
+    rec = book.get(file_hash)
+
+    if rec and isinstance(rec, dict):
+        existing_url = rec.get("url")
+        if existing_url:
+            rel = os.path.normpath(existing_url.lstrip('/'))
+            full_path = os.path.join(app.root_path, rel)
+            if os.path.isfile(full_path):
+                return True, file_hash, rec
+        # stale: remove and fall through
+        book.pop(file_hash, None)
+        save_hashbook(book)
+
+    return False, file_hash, None
 # --- Health / Config ---
 @app.route('/api/config', methods=['GET'])
 def api_config():
@@ -83,7 +250,7 @@ def create_memo():
 
 @app.route('/api/memos/<memo_id>', methods=['PUT'])
 def update_memo(memo_id):
-    """Updates an existing memo."""
+    """Updates an existing memo. Also deletes any locally-stored images removed from this memo."""
     if not USE_SERVER_BACKEND:
         return jsonify({"message": "Server backend is disabled."}), 400
 
@@ -92,6 +259,22 @@ def update_memo(memo_id):
 
     for i, memo in enumerate(memos):
         if str(memo.get('id')) == str(memo_id):
+
+            old_images = set(memo.get('images') or [])
+            # If client sends images list, compute which ones were removed
+            if 'images' in updated_data and isinstance(updated_data['images'], list):
+                new_images = set(updated_data['images'])
+                removed = old_images - new_images
+                # Only delete uploads that no other memo still references
+                for url in removed:
+                    still_used_elsewhere = any(
+                        url in (m.get('images') or [])
+                        for m in memos
+                        if str(m.get('id')) != str(memo_id)
+                    )
+                    if not still_used_elsewhere:
+                        delete_upload_url(url)
+
             memo.update(updated_data)
             memo['id'] = memo_id  # don't let client change id
             memo['updatedAt'] = datetime.utcnow().isoformat() + 'Z'
@@ -120,6 +303,8 @@ def delete_memo(memo_id):
 
     if 'images' in memo_to_delete and memo_to_delete['images']:
         for image_url in memo_to_delete['images']:
+            delete_upload_url(image_url)
+            """
             relative_path = image_url[1:] 
             full_path = os.path.join(app.root_path, relative_path)
             try:
@@ -135,6 +320,7 @@ def delete_memo(memo_id):
                         print(f"Directory {dir_path} is not empty or could not be removed: {e}")
             except OSError as e:
                 print(f"Error deleting file {full_path}: {e}")
+            """
 
     # Default not do anything to file stored part
     new_memos = [m for m in memos if str(m.get('id')) != str(memo_id)]
@@ -145,7 +331,12 @@ def delete_memo(memo_id):
 # --- Uploads ---
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
-    """Handles file uploads; stores in uploads/YYYY-MM-DD/ and returns that URL."""
+    """
+       Handles file uploads; stores in uploads/YYYY-MM-DD/ and returns that URL.
+       Also does de-duplication (SHA-256).
+       Stores/reuses under uploads/_blobs/sha256/<hash><ext>, returns that URL.
+    """
+
     if not USE_SERVER_BACKEND:
         return jsonify({"message": "Server backend is disabled."}), 400
     if 'file' not in request.files:
@@ -153,6 +344,14 @@ def upload_file():
     file = request.files['file']
     if not file or file.filename == '':
         return jsonify({"message": "No selected file"}), 400
+    
+    is_duplicate, file_hash, rec = is_file_in_hashbook(file)
+    if is_duplicate:
+        book = get_hashbook()
+        rec['count'] = int(rec.get('count', 0)) + 1
+        book[file_hash] = rec
+        save_hashbook(book)
+        return jsonify({"url": rec["url"], "duplicate": True, "hash": file_hash}), 200
 
     # Create a date-based subdirectory like '2025-08-25'
     date_folder = datetime.now().strftime('%Y-%m-%d')  # or datetime.utcnow()
@@ -175,7 +374,11 @@ def upload_file():
         counter += 1
 
     file.save(dest)
-    return jsonify({"url": f"/uploads/{date_folder}/{filename}"}), 201
+    url = f"/uploads/{date_folder}/{filename}"
+    book = get_hashbook()
+    book[file_hash] = url
+    save_hashbook(book)
+    return jsonify({"url": url, "duplicate": False, "hash": file_hash}), 201
 
 @app.route('/uploads/<path:filename>')
 def serve_file(filename):

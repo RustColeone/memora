@@ -64,11 +64,6 @@
                         </div>
                         <div class="muted">Tip: Type a new category and press Enter to add.</div>
                     </div>
-                    <div class="row">
-                        <label for="images" type="button">Click to upload Images</label>
-                        <input accept="image/*" id="images" multiple="" type="file" />
-                        <div class="muted">Drag thumbnails below to reorder.</div>
-                    </div>
                 </div>
                 <div class="row">
                     <label>Tags</label>
@@ -78,6 +73,12 @@
                         <div class="dropdown hidden" id="tagDropdown"></div>
                     </div>
                     <div class="chips" id="tagChips"></div>
+                </div>
+                <div class="row">
+                    <!-- Drop zone users can click / paste into / drop onto -->
+                    <div id="dropzone" class="dropzone">Paste, drop, or tap to add photos</div>
+                    <input accept="image/*" id="images" multiple="" type="file" capture="environment" multiple hidden/>
+                    <div class="muted">Drag thumbnails below to reorder.</div>
                 </div>
                 <div class="row">
                     <label>Images order</label>

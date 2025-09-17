@@ -334,6 +334,21 @@ dialog {
 }
 
 /* File upload hint stays tidy on one line when possible */
+
+.dropzone {
+    padding: 10px 12px;
+    border: 1px dashed var(--border, #888);
+    border-radius: 8px;
+    text-align: center;
+    cursor: pointer;
+    color: var(--muted, #aaa);
+}
+
+.dropzone.dragover {
+    border-color: #4da3ff;
+    background: rgba(77, 163, 255, .06);
+}
+
 label[type="button"] {
     white-space: nowrap;
 }
@@ -888,14 +903,14 @@ input[type="number"] {
 
 /* fluid column sizing */
 .listtable .col-date {
-    width: clamp(120px, 16vw, 160px);
+    width: clamp(120px, 16vw, 140px);
     white-space: nowrap;
 }
 
 .listtable .col-price,
 .listtable .col-tax,
-.listtable .col-adj{
-    width: clamp(60px, 12vw, 140px);
+.listtable .col-adj {
+    width: clamp(60px, 12vw, 130px);
     text-align: right;
 }
 
@@ -941,6 +956,7 @@ input[type="number"] {
     border: 1px solid var(--border);
     cursor: zoom-in;
 }
+
 
 
 @media (max-width: 720px) {
@@ -1173,13 +1189,21 @@ input[type="number"] {
 
 /* On small screens, stack rows as cards using nth-child labels */
 @media (max-width: 900px) {
-    .feed:not([data-listmode="table"]) .tablewrap { border-radius: 14px; }
-    .feed:not([data-listmode="table"]) .listtable thead { display: none; }
+    .feed:not([data-listmode="table"]) .tablewrap {
+        border-radius: 14px;
+    }
+
+    .feed:not([data-listmode="table"]) .listtable thead {
+        display: none;
+    }
 
     .feed:not([data-listmode="table"]) .listtable,
     .feed:not([data-listmode="table"]) .listtable tbody,
     .feed:not([data-listmode="table"]) .listtable tr,
-    .feed:not([data-listmode="table"]) .listtable td { display: block; width: 100%; }
+    .feed:not([data-listmode="table"]) .listtable td {
+        display: block;
+        width: 100%;
+    }
 
     .feed[data-listmode="table"] .listtable tbody tr {
         border: 1px solid var(--border);
@@ -1210,22 +1234,26 @@ input[type="number"] {
     }
 
     .feed[data-listmode="table"] .listtable tbody td:nth-child(2)::before {
-        content: "Description & Images";
+        content: "Description";
     }
 
     .feed[data-listmode="table"] .listtable tbody td:nth-child(3)::before {
-        content: "Price";
+        content: "Images";
     }
 
     .feed[data-listmode="table"] .listtable tbody td:nth-child(4)::before {
-        content: "Tax";
+        content: "Price";
     }
 
     .feed[data-listmode="table"] .listtable tbody td:nth-child(5)::before {
-        content: "Adjustments";
+        content: "Tax";
     }
 
     .feed[data-listmode="table"] .listtable tbody td:nth-child(6)::before {
+        content: "Adjustments";
+    }
+
+    .feed[data-listmode="table"] .listtable tbody td:nth-child(7)::before {
         content: "Total";
     }
 
@@ -1233,10 +1261,11 @@ input[type="number"] {
         margin-top: 4px;
     }
 
-    .feed[data-listmode="table"] .inline-thumbs img  {
+    .feed[data-listmode="table"] .inline-thumbs img {
         width: 42px;
         height: 42px;
     }
+
     .feed[data-listmode="table"] .inline-thumbs .thumb.more {
         width: 42px;
         height: 42px;
@@ -1246,29 +1275,41 @@ input[type="number"] {
 /* Progressive column hiding (keep Total visible) */
 /* Column order assumed: 1 Date, 2 Desc, 3 Price, 4 Tax, 5 Adjustments, 6 Total */
 
-.tablewrap .listtable { table-layout: auto; }
+.tablewrap .listtable {
+    table-layout: auto;
+}
 
 /* Hide ADJUSTMENTS first */
 @media (max-width: 880px) {
-  .feed[data-listmode="table"] .listtable tr > *:nth-child(6) { display: none; }
+    .feed[data-listmode="table"] .listtable tr>*:nth-child(6) {
+        display: none;
+    }
 }
 
 /* Then hide TAX */
 @media (max-width: 640px) {
-  .feed[data-listmode="table"] .listtable tr > *:nth-child(5) { display: none; }
+    .feed[data-listmode="table"] .listtable tr>*:nth-child(5) {
+        display: none;
+    }
 }
 
 /* Then hide IMAGES */
 @media (max-width: 510px) {
-  .feed[data-listmode="table"] .listtable tr > *:nth-child(3) { display: none; }
+    .feed[data-listmode="table"] .listtable tr>*:nth-child(3) {
+        display: none;
+    }
 }
 
 /* Then hide PRICE */
 @media (max-width: 400px) {
-  .feed[data-listmode="table"] .listtable tr > *:nth-child(4) { display: none; }
+    .feed[data-listmode="table"] .listtable tr>*:nth-child(4) {
+        display: none;
+    }
 }
 
 /* Optional: relax description width once numbers disappear */
 @media (max-width: 520px) {
-  .feed[data-listmode="table"] .listtable .col-desc { min-width: auto; }
+    .feed[data-listmode="table"] .listtable .col-desc {
+        min-width: auto;
+    }
 }

@@ -79,6 +79,7 @@ const els = {
     calLegend: $('#calLegend'),
     calDrill: $('#calDrill'),
     calClearSel: $('#calClearSel'),
+    dropzone: $('#dropzone')
 };
 
 // No-op for apps that didn't include this in the stripped version
@@ -531,7 +532,7 @@ function rebuildDragGrid() {
             const i = idx;
             const item = modalImages[i];
             // If it was a newly added blob URL, free it
-            try { if (item?.file && item?.src?.startsWith?.('blob:')) URL.revokeObjectURL(item.src); } catch {}
+            try { if (item?.file && item?.src?.startsWith?.('blob:')) URL.revokeObjectURL(item.src); } catch { }
             modalImages.splice(i, 1);
             rebuildDragGrid();
         });
@@ -549,13 +550,45 @@ function rebuildDragGrid() {
         els.dragGrid.appendChild(d);
     });
 }
+function addImageFiles(files) {
+    for (const f of files) {
+        if (!f || !f.type?.startsWith('image/')) continue;
+        const url = URL.createObjectURL(f);
+        modalImages.push({ src: url, file: f, existing: false });
+    }
+    rebuildDragGrid();
+}
+
 if (els.images) {
-    els.images.addEventListener('change', async () => {
-        for (const f of els.images.files) {
-            const url = URL.createObjectURL(f);
-            modalImages.push({ src: url, file: f, existing: false });
+    els.images.addEventListener('change', () => {
+        addImageFiles(els.images.files);
+        els.images.value = ''; // allow selecting same file again
+    });
+}
+
+if (els.dropzone && els.images) {
+    // Click (also opens camera on mobile because of capture="environment")
+    els.dropzone.addEventListener('click', () => els.images.click());
+
+    // Drag & drop
+    els.dropzone.addEventListener('dragover', (e) => { e.preventDefault(); els.dropzone.classList.add('dragover'); });
+    els.dropzone.addEventListener('dragleave', () => els.dropzone.classList.remove('dragover'));
+    els.dropzone.addEventListener('drop', (e) => {
+        e.preventDefault(); els.dropzone.classList.remove('dragover');
+        addImageFiles(e.dataTransfer?.files || []);
+    });
+
+    // Paste anywhere (or restrict to the dropzone by attaching to dropzone instead of document)
+    document.addEventListener('paste', (e) => {
+        const items = e.clipboardData?.items || [];
+        const files = [];
+        for (const it of items) {
+            if (it.kind === 'file') {
+                const f = it.getAsFile();
+                if (f && f.type?.startsWith('image/')) files.push(f);
+            }
         }
-        rebuildDragGrid();
+        if (files.length) addImageFiles(files);
     });
 }
 
