@@ -217,7 +217,14 @@ main {
     border: none;
     color: #001a36;
     box-shadow: 0 10px 18px rgba(0, 0, 0, .35);
-    cursor: pointer
+    cursor: pointer;
+    opacity: .72;
+    transition: opacity .2s ease, box-shadow .2s ease
+}
+
+.fab:hover,
+.fab:focus {
+    opacity: .95;
 }
 
 dialog {
@@ -916,6 +923,7 @@ input[type="number"] {
 
 /* 2) Feed grid: denser on large screens, flexible on phones */
 @media (max-width: 720px) {
+    .floating .fab { opacity: .55; }
     .feed {
         grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
         gap: 12px;
@@ -1033,4 +1041,9 @@ input[type="number"] {
     #searchBox {
         width: 100%;
     }
+}
+
+/* Wider screens: make FAB more opaque */
+@media (min-width: 981px) {
+    .floating .fab { opacity: .9; }
 }

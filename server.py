@@ -14,6 +14,8 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 DATA_FILE = os.path.join(DATA_DIR, 'memos.json')
 HASHBOOK_FILE = os.path.join(DATA_DIR, 'hashbook.json')
+# Additional finance dataset file (separate from default memos.json)
+FINANCE_DATA_FILE = os.path.join(DATA_DIR, 'finance.json')
 
 # Initialize Flask app
 app = Flask(__name__, static_folder='static', template_folder='templates')
@@ -29,6 +31,9 @@ if not os.path.exists(DATA_FILE):
 if not os.path.exists(HASHBOOK_FILE):
     with open(HASHBOOK_FILE, 'w', encoding='utf-8') as f:
         f.write("{}")
+if not os.path.exists(FINANCE_DATA_FILE):
+    with open(FINANCE_DATA_FILE, 'w', encoding='utf-8') as f:
+        f.write("[]")
 
 _lock = Lock()
 
@@ -45,15 +50,35 @@ def _write_json(path, obj):
         json.dump(obj, f, ensure_ascii=False, indent=2)
     os.replace(tmp, path)
 
-# Helper function to read memos
-def get_memos():
-    with _lock:
-        return _read_json(DATA_FILE)
+def _get_variant():
+    """
+    Determine which variant the request is for.
+    Priority: query param ?variant=finance|default -> header X-Memo-Variant -> Referer heuristic -> default.
+    """
+    v = (request.args.get('variant') or '').strip().lower()
+    if v in ('finance', 'default'):
+        return v
+    hdr = (request.headers.get('X-Memo-Variant') or '').strip().lower()
+    if hdr in ('finance', 'default'):
+        return hdr
+    # Heuristic: referer path contains '/FINANCE/' (case-insensitive)
+    ref = (request.headers.get('Referer') or '')
+    if '/FINANCE/' in ref or '/finance/' in ref:
+        return 'finance'
+    return 'default'
 
-# Helper function to write memos
-def save_memos(memos):
+def _data_file_for_variant(variant: str) -> str:
+    return FINANCE_DATA_FILE if variant == 'finance' else DATA_FILE
+
+def get_memos_for_variant(variant: str):
+    path = _data_file_for_variant(variant)
     with _lock:
-        _write_json(DATA_FILE, memos)
+        return _read_json(path)
+
+def save_memos_for_variant(memos, variant: str):
+    path = _data_file_for_variant(variant)
+    with _lock:
+        _write_json(path, memos)
 
 # Helper Function to delete file
 def delete_upload_url(image_url: str):
@@ -228,7 +253,8 @@ def api_config():
 def get_all_memos():
     """Returns all memos."""
     if USE_SERVER_BACKEND:
-        return jsonify(get_memos())
+        variant = _get_variant()
+        return jsonify(get_memos_for_variant(variant))
     return jsonify([])
 
 @app.route('/api/memos', methods=['POST'])
@@ -237,15 +263,16 @@ def create_memo():
     if not USE_SERVER_BACKEND:
         return jsonify({"message": "Server backend is disabled."}), 400
 
+    variant = _get_variant()
     new_memo = request.get_json(force=True, silent=True) or {}
-    memos = get_memos()
+    memos = get_memos_for_variant(variant)
 
     new_memo['id'] = new_memo.get('id') or str(uuid.uuid4())
     new_memo['createdAt'] = new_memo.get('createdAt') or datetime.utcnow().isoformat() + 'Z'
     new_memo.setdefault('updatedAt', new_memo['createdAt'])
 
     memos.append(new_memo)
-    save_memos(memos)
+    save_memos_for_variant(memos, variant)
     return jsonify(new_memo), 201
 
 @app.route('/api/memos/<memo_id>', methods=['PUT'])
@@ -254,8 +281,9 @@ def update_memo(memo_id):
     if not USE_SERVER_BACKEND:
         return jsonify({"message": "Server backend is disabled."}), 400
 
+    variant = _get_variant()
     updated_data = request.get_json(force=True, silent=True) or {}
-    memos = get_memos()
+    memos = get_memos_for_variant(variant)
 
     for i, memo in enumerate(memos):
         if str(memo.get('id')) == str(memo_id):
@@ -265,7 +293,8 @@ def update_memo(memo_id):
             if 'images' in updated_data and isinstance(updated_data['images'], list):
                 new_images = set(updated_data['images'])
                 removed = old_images - new_images
-                # Only delete uploads that no other memo still references
+                # Only delete uploads that no other memo still references (across both variants)
+                # Check same-file first
                 for url in removed:
                     still_used_elsewhere = any(
                         url in (m.get('images') or [])
@@ -273,13 +302,21 @@ def update_memo(memo_id):
                         if str(m.get('id')) != str(memo_id)
                     )
                     if not still_used_elsewhere:
+                        # Check the other file too
+                        other_variant = 'default' if variant == 'finance' else 'finance'
+                        other_memos = get_memos_for_variant(other_variant)
+                        still_used_elsewhere = any(
+                            url in (m.get('images') or [])
+                            for m in other_memos
+                        )
+                    if not still_used_elsewhere:
                         delete_upload_url(url)
 
             memo.update(updated_data)
             memo['id'] = memo_id  # don't let client change id
             memo['updatedAt'] = datetime.utcnow().isoformat() + 'Z'
             memos[i] = memo
-            save_memos(memos)
+            save_memos_for_variant(memos, variant)
             return jsonify(memo)
 
     return jsonify({"message": "Memo not found"}), 404
@@ -290,7 +327,8 @@ def delete_memo(memo_id):
     if not USE_SERVER_BACKEND:
         return jsonify({"message": "Server backend is disabled."}), 400
 
-    memos = get_memos()
+    variant = _get_variant()
+    memos = get_memos_for_variant(variant)
     memo_to_delete = None
 
     for m in memos:
@@ -303,7 +341,15 @@ def delete_memo(memo_id):
 
     if 'images' in memo_to_delete and memo_to_delete['images']:
         for image_url in memo_to_delete['images']:
-            delete_upload_url(image_url)
+            # Best-effort: ensure not referenced by other variant before deleting
+            other_variant = 'default' if variant == 'finance' else 'finance'
+            other_memos = get_memos_for_variant(other_variant)
+            still_used_elsewhere = any(
+                image_url in (m.get('images') or [])
+                for m in other_memos
+            )
+            if not still_used_elsewhere:
+                delete_upload_url(image_url)
             """
             relative_path = image_url[1:] 
             full_path = os.path.join(app.root_path, relative_path)
@@ -324,7 +370,7 @@ def delete_memo(memo_id):
 
     # Default not do anything to file stored part
     new_memos = [m for m in memos if str(m.get('id')) != str(memo_id)]
-    save_memos(new_memos)
+    save_memos_for_variant(new_memos, variant)
     return jsonify({"message": "Memo and associated files deleted"}), 200
 
 
@@ -388,6 +434,15 @@ def serve_file(filename):
 @app.route('/')
 def serve_index():
     return render_template('index.html')
+
+# Finance page route
+@app.route('/finance')
+def serve_finance():
+    return render_template('finance.html')
+
+@app.route('/finance.html')
+def serve_finance_html():
+    return render_template('finance.html')
 
 if __name__ == '__main__':
     # Run: USE_SERVER_BACKEND=true python app.py
