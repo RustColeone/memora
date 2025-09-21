@@ -99,25 +99,6 @@
 /* Keep sticky totals behind the floating action button */
 .floating .fab { position: relative; z-index: 10; }
 
-/* Finance-only: make the + button background translucent and less transparent on wider screens */
-.floating .fab {
-    /* #60a5fa -> rgb(96,165,250) with alpha */
-    background-color: rgba(96, 165, 250, 0.40);
-}
-
-@media (min-width: 480px) {
-    .floating .fab { background-color: rgba(96, 165, 250, 0.65); }
-}
-@media (min-width: 720px) {
-    .floating .fab { background-color: rgba(96, 165, 250, 0.75); }
-}
-@media (min-width: 980px) {
-    .floating .fab { background-color: rgba(96, 165, 250, 0.85); }
-}
-@media (min-width: 1200px) {
-    .floating .fab { background-color: rgba(96, 165, 250, 0.92); }
-}
-
 /* Table footer totals styling to match table */
 .listtable tfoot td {
     border-top: 2px solid var(--border);

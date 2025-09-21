@@ -71,6 +71,14 @@ const els = {
   tagMgrList: $('#tagMgrList'),
   tagMgrUndo: $('#tagMgrUndo'),
   tagMgrClose: $('#tagMgrClose'),
+  // chat
+  chatBtn: $('#chatBtn'),
+  chatDlg: $('#chatDlg'),
+  chatHistory: $('#chatHistory'),
+  chatInput: $('#chatInput'),
+  chatSendBtn: $('#chatSendBtn'),
+  chatClearBtn: $('#chatClearBtn'),
+  chatCloseBtn: $('#chatCloseBtn'),
   lightbox: $('#lightbox'),
   lbImg: $('#lbImg'),
   lbPrev: $('#lbPrev'),
@@ -174,6 +182,29 @@ const ServerAPI = {
     const r = await fetch(`${API_BASE}/api/upload`, { method: 'POST', body: fd });
     if (!r.ok) throw new Error('Upload failed');
     return r.json(); // { url: "/uploads/..." }
+  },
+  // Chat API
+  async chatList() {
+    const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
+    const r = await fetch(`${API_BASE}/api/chat${qp}`);
+    if (!r.ok) throw new Error('Failed to fetch chat history');
+    return r.json(); // [ {id, role, content, ts}, ... ]
+  },
+  async chatSend(message) {
+    const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
+    const r = await fetch(`${API_BASE}/api/chat${qp}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message })
+    });
+    if (!r.ok) throw new Error('Failed to send chat message');
+    return r.json(); // { messages: [ userMsg, botMsg ] }
+  },
+  async chatClear() {
+    const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
+    const r = await fetch(`${API_BASE}/api/chat${qp}`, { method: 'DELETE' });
+    if (!r.ok) throw new Error('Failed to clear chat');
+    return r.json(); // []
   }
 };
 
@@ -816,6 +847,9 @@ async function coreInit() {
     } catch (e) { console.warn('No persisted folder or cannot restore:', e); }
     renderFeed();
   }
+
+  // Initialize Chat wiring after mode detection
+  initChatUI();
 }
 
 // Expose a tiny API for variants
@@ -846,4 +880,115 @@ async function updateMemoJson(rootDir, entry, imgInfo) {
   }
   if (imgInfo?.storedPath) rec.images.push({ storedPath: imgInfo.storedPath, originalName: imgInfo.originalName });
   const w = await jsonHandle.createWritable(); await w.write(JSON.stringify(data, null, 2)); await w.close();
+}
+
+// =======================
+// Chat UI (core)
+// =======================
+function createChatMsgElement(msg) {
+  const wrap = document.createElement('div');
+  wrap.className = `chat-msg ${msg.role === 'user' ? 'user' : 'assistant'}`;
+  const role = document.createElement('div');
+  role.className = 'chat-role';
+  role.textContent = msg.role === 'user' ? 'You' : 'Assistant';
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble';
+  bubble.textContent = msg.content || '';
+  wrap.appendChild(role);
+  wrap.appendChild(bubble);
+  return wrap;
+}
+
+function renderChatHistory(messages) {
+  if (!els.chatHistory) return;
+  els.chatHistory.innerHTML = '';
+  (messages || []).forEach(m => {
+    els.chatHistory.appendChild(createChatMsgElement(m));
+  });
+  // scroll to bottom
+  els.chatHistory.scrollTop = els.chatHistory.scrollHeight;
+}
+
+function setChatDisabled(disabled, hint) {
+  if (!els.chatInput || !els.chatSendBtn) return;
+  els.chatInput.disabled = disabled;
+  els.chatSendBtn.disabled = disabled;
+  if (disabled && hint && els.chatHistory) {
+    const msg = { role: 'assistant', content: hint };
+    els.chatHistory.appendChild(createChatMsgElement(msg));
+  }
+}
+
+function initChatUI() {
+  if (!els.chatBtn || !els.chatDlg || !els.chatHistory) return;
+
+  async function openChat() {
+    els.chatHistory.innerHTML = '';
+    if (MODE === 'server') {
+      try {
+        const history = await ServerAPI.chatList();
+        renderChatHistory(history);
+        setChatDisabled(false);
+      } catch (e) {
+        renderChatHistory([]);
+        setChatDisabled(true, 'Unable to load chat history.');
+      }
+    } else {
+      renderChatHistory([]);
+      setChatDisabled(true, 'Chat requires the server backend.');
+    }
+    els.chatDlg.showModal();
+    if (!els.chatInput.disabled) {
+      els.chatInput.focus();
+    }
+  }
+
+  async function doSend() {
+    if (!els.chatInput || !els.chatHistory) return;
+    const text = (els.chatInput.value || '').trim();
+    if (!text) return;
+    if (MODE !== 'server') return; // disabled in local mode
+    // optimistic user append
+    const userMsg = { role: 'user', content: text };
+    els.chatHistory.appendChild(createChatMsgElement(userMsg));
+    els.chatHistory.scrollTop = els.chatHistory.scrollHeight;
+    els.chatInput.value = '';
+    els.chatInput.disabled = true; els.chatSendBtn.disabled = true;
+    try {
+      const res = await ServerAPI.chatSend(text);
+      const msgs = res && res.messages ? res.messages : [];
+      // Append assistant reply if available (avoid duplicating user message)
+      const assistant = msgs.find(m => m.role === 'assistant');
+      if (assistant) {
+        els.chatHistory.appendChild(createChatMsgElement(assistant));
+      }
+      els.chatHistory.scrollTop = els.chatHistory.scrollHeight;
+    } catch (e) {
+      const errMsg = { role: 'assistant', content: 'Failed to send. Please try again.' };
+      els.chatHistory.appendChild(createChatMsgElement(errMsg));
+    } finally {
+      els.chatInput.disabled = false; els.chatSendBtn.disabled = false;
+      els.chatInput.focus();
+    }
+  }
+
+  async function doClear() {
+    if (MODE !== 'server') { els.chatHistory.innerHTML = ''; return; }
+    try {
+      await ServerAPI.chatClear();
+      els.chatHistory.innerHTML = '';
+    } catch (e) {
+      // show inline error
+      const m = { role: 'assistant', content: 'Failed to clear history.' };
+      els.chatHistory.appendChild(createChatMsgElement(m));
+    }
+  }
+
+  els.chatBtn.addEventListener('click', openChat);
+  if (els.chatCloseBtn) els.chatCloseBtn.addEventListener('click', () => els.chatDlg.close());
+  if (els.chatSendBtn) els.chatSendBtn.addEventListener('click', doSend);
+  if (els.chatInput) els.chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); doSend(); }
+  });
+  if (els.chatClearBtn) els.chatClearBtn.addEventListener('click', doClear);
 }

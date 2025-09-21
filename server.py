@@ -16,6 +16,8 @@ DATA_FILE = os.path.join(DATA_DIR, 'memos.json')
 HASHBOOK_FILE = os.path.join(DATA_DIR, 'hashbook.json')
 # Additional finance dataset file (separate from default memos.json)
 FINANCE_DATA_FILE = os.path.join(DATA_DIR, 'finance.json')
+CHAT_DEFAULT_FILE = os.path.join(DATA_DIR, 'chat.json')
+CHAT_FINANCE_FILE = os.path.join(DATA_DIR, 'chat_finance.json')
 
 # Initialize Flask app
 app = Flask(__name__, static_folder='static', template_folder='templates')
@@ -33,6 +35,12 @@ if not os.path.exists(HASHBOOK_FILE):
         f.write("{}")
 if not os.path.exists(FINANCE_DATA_FILE):
     with open(FINANCE_DATA_FILE, 'w', encoding='utf-8') as f:
+        f.write("[]")
+if not os.path.exists(CHAT_DEFAULT_FILE):
+    with open(CHAT_DEFAULT_FILE, 'w', encoding='utf-8') as f:
+        f.write("[]")
+if not os.path.exists(CHAT_FINANCE_FILE):
+    with open(CHAT_FINANCE_FILE, 'w', encoding='utf-8') as f:
         f.write("[]")
 
 _lock = Lock()
@@ -70,6 +78,9 @@ def _get_variant():
 def _data_file_for_variant(variant: str) -> str:
     return FINANCE_DATA_FILE if variant == 'finance' else DATA_FILE
 
+def _chat_file_for_variant(variant: str) -> str:
+    return CHAT_FINANCE_FILE if variant == 'finance' else CHAT_DEFAULT_FILE
+
 def get_memos_for_variant(variant: str):
     path = _data_file_for_variant(variant)
     with _lock:
@@ -79,6 +90,16 @@ def save_memos_for_variant(memos, variant: str):
     path = _data_file_for_variant(variant)
     with _lock:
         _write_json(path, memos)
+
+def get_chat_for_variant(variant: str):
+    path = _chat_file_for_variant(variant)
+    with _lock:
+        return _read_json(path)
+
+def save_chat_for_variant(messages, variant: str):
+    path = _chat_file_for_variant(variant)
+    with _lock:
+        _write_json(path, messages)
 
 # Helper Function to delete file
 def delete_upload_url(image_url: str):
@@ -242,6 +263,41 @@ def is_file_in_hashbook(file_storage):
         save_hashbook(book)
 
     return False, file_hash, None
+
+# --- Chat API ---
+@app.route('/api/chat', methods=['GET'])
+def chat_list():
+    if not USE_SERVER_BACKEND:
+        return jsonify([])
+    variant = _get_variant()
+    return jsonify(get_chat_for_variant(variant))
+
+@app.route('/api/chat', methods=['POST'])
+def chat_send():
+    if not USE_SERVER_BACKEND:
+        return jsonify({"message": "Server backend is disabled."}), 400
+    variant = _get_variant()
+    payload = request.get_json(force=True, silent=True) or {}
+    user_text = (payload.get('message') or '').strip()
+    if not user_text:
+        return jsonify({"message": "Empty message"}), 400
+    history = get_chat_for_variant(variant)
+    now = datetime.utcnow().isoformat() + 'Z'
+    user_msg = {"id": str(uuid.uuid4()), "role": "user", "content": user_text, "ts": now}
+    bot_reply_text = "FEATURE NOT SUPPORTED YET"
+    bot_msg = {"id": str(uuid.uuid4()), "role": "assistant", "content": bot_reply_text, "ts": datetime.utcnow().isoformat() + 'Z'}
+    history.append(user_msg)
+    history.append(bot_msg)
+    save_chat_for_variant(history, variant)
+    return jsonify({"messages": [user_msg, bot_msg]})
+
+@app.route('/api/chat', methods=['DELETE'])
+def chat_clear():
+    if not USE_SERVER_BACKEND:
+        return jsonify({"message": "Server backend is disabled."}), 400
+    variant = _get_variant()
+    save_chat_for_variant([], variant)
+    return jsonify([])
 # --- Health / Config ---
 @app.route('/api/config', methods=['GET'])
 def api_config():

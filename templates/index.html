@@ -23,6 +23,7 @@
             <button id="calendarBtn" title="Open calendar">Calendar</button>
             <button id="chooseDirBtn" title="Choose a folder to save images &amp; memo.json"
                 data-hide-when-server>Choose Folder</button>
+            <button id="chatBtn" title="Ask questions">Chat</button>
         </div>
     </header>
     <!-- Lightbox -->
@@ -45,6 +46,25 @@
     <div class="floating">
         <button class="fab" id="fab" title="New entry">+</button>
     </div>
+    <!-- Chat Dialog -->
+    <dialog id="chatDlg">
+        <div class="modal chatmodal">
+            <header style="display:flex;align-items:center;gap:10px;justify-content:space-between">
+                <strong>Chat</strong>
+                <div class="inline" style="gap:8px">
+                    <button class="ghost" id="chatClearBtn" title="Clear history">Clear</button>
+                    <button class="ghost" id="chatCloseBtn" title="Close">Close</button>
+                </div>
+            </header>
+            <div class="content">
+                <div id="chatHistory" class="chat-history"></div>
+                <div class="chat-input">
+                    <input id="chatInput" type="text" placeholder="Type your question..." />
+                    <button id="chatSendBtn" class="primary">Send</button>
+                </div>
+            </div>
+        </div>
+    </dialog>
     <!-- Create/Edit Modal -->
     <dialog id="entryDlg">
         <div class="modal">
