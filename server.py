@@ -252,7 +252,7 @@ def is_file_in_hashbook(file_storage):
     rec = book.get(file_hash)
 
     if rec and isinstance(rec, dict):
-        existing_url = rec.get("url")
+        existing_url = rec.get("storedPath")
         if existing_url:
             rel = os.path.normpath(existing_url.lstrip('/'))
             full_path = os.path.join(app.root_path, rel)
@@ -453,7 +453,7 @@ def upload_file():
         rec['count'] = int(rec.get('count', 0)) + 1
         book[file_hash] = rec
         save_hashbook(book)
-        return jsonify({"url": rec["url"], "duplicate": True, "hash": file_hash}), 200
+        return jsonify({"url": rec["storedPath"], "duplicate": True, "hash": file_hash}), 200
 
     # Create a date-based subdirectory like '2025-08-25'
     date_folder = datetime.now().strftime('%Y-%m-%d')  # or datetime.utcnow()
@@ -477,8 +477,9 @@ def upload_file():
 
     file.save(dest)
     url = f"/uploads/{date_folder}/{filename}"
+    hashed_entry = {"storedPath": url, "count": counter}
     book = get_hashbook()
-    book[file_hash] = url
+    book[file_hash] = hashed_entry
     save_hashbook(book)
     return jsonify({"url": url, "duplicate": False, "hash": file_hash}), 201
 
@@ -500,6 +501,6 @@ def serve_finance():
 def serve_finance_html():
     return render_template('finance.html')
 
-# if __name__ == '__main__':
-#     # Run: USE_SERVER_BACKEND=true python app.py
-#     app.run(host='0.0.0.0', port=5050, debug=True)
+if __name__ == '__main__':
+     # Run: USE_SERVER_BACKEND=true python app.py
+     app.run(host='0.0.0.0', port=5050, debug=True)

@@ -270,6 +270,9 @@ async function ensurePermission(handle, mode = 'read') {
   const req = await handle.requestPermission({ mode });
   return req === 'granted';
 }
+async function ensureWritePermission(dirHandle) {
+  try { return await ensurePermission(dirHandle, 'readwrite'); } catch { return false; }
+}
 // Revoke old blob: URLs to avoid leaks
 let urlBucket = [];
 function revokeAllObjectURLs() { for (const u of urlBucket) { URL.revokeObjectURL(u); } urlBucket = []; }
@@ -708,6 +711,10 @@ async function onSaveEntry() {
     });
 
     if (settings.fsEnabled && settings.memoDirHandle && filesToWrite.length) {
+      const canWrite = await ensureWritePermission(settings.memoDirHandle);
+      if (!canWrite) {
+        alert('Cannot write to the chosen folder (permission denied). The entry will be saved in browser storage only.');
+      }
       const dateFolderName = todayFolder(entry.ts);
       const dateDir = await getOrCreateDir(settings.memoDirHandle, dateFolderName);
       const base = slug(description || 'memo');
@@ -720,11 +727,11 @@ async function onSaveEntry() {
         const ext = (f.name.split('.').pop() || 'jpg').toLowerCase();
         const hash = await computeSHA256(f);
         let usedStoredPath = null;
-        if (hash && book[hash] && book[hash].storedPath && await storedPathExists(settings.memoDirHandle, book[hash].storedPath)) {
+        if (canWrite && hash && book[hash] && book[hash].storedPath && await storedPathExists(settings.memoDirHandle, book[hash].storedPath)) {
           // Reuse existing file
           usedStoredPath = book[hash].storedPath;
           book[hash].count = Math.max(1, parseInt(book[hash].count || 1, 10) + 1);
-        } else {
+        } else if (canWrite) {
           // Write new file
           const newName = `${dateFolderName}_${base || 'post'}_${String(i + 1).padStart(2, '0')}.${ext}`;
           const fileHandle = await dateDir.getFileHandle(newName, { create: true });
@@ -734,19 +741,26 @@ async function onSaveEntry() {
           usedStoredPath = `${dateFolderName}/${newName}`;
           if (hash) book[hash] = { storedPath: usedStoredPath, count: 1 };
         }
-        await writeHashbookFS(settings.memoDirHandle, book);
-        keptStoredPaths.push(usedStoredPath);
+        if (canWrite) {
+          await writeHashbookFS(settings.memoDirHandle, book);
+          keptStoredPaths.push(usedStoredPath);
+        }
       }
     }
 
     // Update FS JSON record to match exactly the kept/new stored paths
     if (settings.fsEnabled && settings.memoDirHandle) {
+      const canWrite = await ensureWritePermission(settings.memoDirHandle);
+      if (!canWrite) {
+        // Skip FS JSON sync if we cannot write; rely on localStorage only
+      } else {
       const originalPaths = Array.isArray((db.entries.find(e => e.id === entry.id)?._storedPaths)) ? (db.entries.find(e => e.id === entry.id)._storedPaths) : [];
       const removed = originalPaths.filter(sp => sp && !keptStoredPaths.includes(sp));
       // Decrement hashbook and delete files for removed paths
       for (const sp of removed) { try { await decrementAndMaybeDelete(settings.memoDirHandle, sp); } catch (e) { console.warn('Failed to cleanup removed image', sp, e); } }
       await replaceMemoRecordImages(settings.memoDirHandle, entry, keptStoredPaths);
       entry._storedPaths = keptStoredPaths.slice();
+      }
     }
 
     if (isNew) db.entries.push(entry);
@@ -1191,7 +1205,15 @@ const LocalChat = {
   async list() {
     if (settings.fsEnabled && settings.memoDirHandle) {
       const raw = await readTextFileIfExists(settings.memoDirHandle, chatDataFileName());
-      if (!raw) return [];
+      if (!raw) {
+        // Create empty chat file to ensure persistence exists
+        const canWrite = await ensureWritePermission(settings.memoDirHandle);
+        if (canWrite) {
+          const fh = await settings.memoDirHandle.getFileHandle(chatDataFileName(), { create: true });
+          const w = await fh.createWritable(); await w.write(JSON.stringify([], null, 2)); await w.close();
+        }
+        return [];
+      }
       try { return JSON.parse(raw) || []; } catch { return []; }
     }
     try { const raw = localStorage.getItem(CHAT_KEY); return raw ? (JSON.parse(raw) || []) : []; } catch { return []; }
@@ -1203,8 +1225,14 @@ const LocalChat = {
     const msgs = await this.list();
     msgs.push(user, bot);
     if (settings.fsEnabled && settings.memoDirHandle) {
-      const fh = await settings.memoDirHandle.getFileHandle(chatDataFileName(), { create: true });
-      const w = await fh.createWritable(); await w.write(JSON.stringify(msgs, null, 2)); await w.close();
+      const canWrite = await ensureWritePermission(settings.memoDirHandle);
+      if (canWrite) {
+        const fh = await settings.memoDirHandle.getFileHandle(chatDataFileName(), { create: true });
+        const w = await fh.createWritable(); await w.write(JSON.stringify(msgs, null, 2)); await w.close();
+      } else {
+        // As a fallback, store in localStorage if permission denied
+        localStorage.setItem(CHAT_KEY, JSON.stringify(msgs));
+      }
     } else {
       localStorage.setItem(CHAT_KEY, JSON.stringify(msgs));
     }
@@ -1212,8 +1240,13 @@ const LocalChat = {
   },
   async clear() {
     if (settings.fsEnabled && settings.memoDirHandle) {
-      const fh = await settings.memoDirHandle.getFileHandle(chatDataFileName(), { create: true });
-      const w = await fh.createWritable(); await w.write(JSON.stringify([], null, 2)); await w.close();
+      const canWrite = await ensureWritePermission(settings.memoDirHandle);
+      if (canWrite) {
+        const fh = await settings.memoDirHandle.getFileHandle(chatDataFileName(), { create: true });
+        const w = await fh.createWritable(); await w.write(JSON.stringify([], null, 2)); await w.close();
+      } else {
+        localStorage.setItem(CHAT_KEY, JSON.stringify([]));
+      }
     } else {
       localStorage.setItem(CHAT_KEY, JSON.stringify([]));
     }
