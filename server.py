@@ -500,6 +500,6 @@ def serve_finance():
 def serve_finance_html():
     return render_template('finance.html')
 
-if __name__ == '__main__':
-    # Run: USE_SERVER_BACKEND=true python app.py
-    app.run(host='0.0.0.0', port=5050, debug=True)
+# if __name__ == '__main__':
+#     # Run: USE_SERVER_BACKEND=true python app.py
+#     app.run(host='0.0.0.0', port=5050, debug=True)

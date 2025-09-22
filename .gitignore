@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+env/
+*.egg-info/
+
+# Buildozer build artifacts
+.buildozer/
+bin/
+libs/
+build/
+dist/
+
+# User-generated data (IMPORTANT)
+data/
+uploads/
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
