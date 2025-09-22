@@ -114,8 +114,10 @@ function updateFilterIndicator() { /* optional hook in your app; safe no-op here
 // =======================
 // State
 // =======================
-const DB_KEY = 'memo_db_v1';
+// Variant-aware local storage keys (back-compat reads legacy DB_KEY if present)
+const DB_KEY = (MEMO_VARIANT === 'finance') ? 'memo_finance_db_v1' : 'memo_db_v1';
 const SETTINGS_KEY = 'memo_settings_v1';
+const CHAT_KEY = (MEMO_VARIANT === 'finance') ? 'chat_finance_v1' : 'chat_default_v1';
 
 let MODE = 'detecting'; // 'server' or 'local'
 let db = ({ entries: [] });
@@ -284,14 +286,64 @@ async function urlFromStoredPath(rootDir, storedPath) {
   return url;
 }
 // Read memo.json from disk
-async function readMemoJson(rootDir) {
+// -----------------------
+// FS data files (variant parity with server.py)
+// default: memos.json, finance: finance.json. Also support legacy memo.json for read-only back-compat.
+function variantDataFileName() { return (MEMO_VARIANT === 'finance') ? 'finance.json' : 'memos.json'; }
+function chatDataFileName() { return (MEMO_VARIANT === 'finance') ? 'chat_finance.json' : 'chat.json'; }
+const HASHBOOK_FILE = 'hashbook.json';
+
+async function readTextFileIfExists(dir, name) {
+  try { const fh = await dir.getFileHandle(name); const f = await fh.getFile(); return await f.text(); } catch { return null; }
+}
+
+async function readEntriesFromFS(rootDir) {
+  // Try primary file; if missing, try legacy memo.json
+  const primary = await readTextFileIfExists(rootDir, variantDataFileName());
+  const legacy = primary == null ? await readTextFileIfExists(rootDir, 'memo.json') : null;
+  const raw = primary ?? legacy;
+  if (!raw) return { entries: [] };
+  try { return JSON.parse(raw); } catch { return { entries: [] }; }
+}
+
+async function writeEntriesToFS(rootDir, data) {
+  const name = variantDataFileName();
+  const fh = await rootDir.getFileHandle(name, { create: true });
+  const w = await fh.createWritable();
+  await w.write(JSON.stringify(data || { entries: [] }, null, 2));
+  await w.close();
+}
+
+// -----------------------
+// Hashbook (local FS) for de-duplication
+async function readHashbookFS(rootDir) {
+  const raw = await readTextFileIfExists(rootDir, HASHBOOK_FILE);
+  if (!raw) return {};
+  try { const obj = JSON.parse(raw); return (obj && typeof obj === 'object') ? obj : {}; } catch { return {}; }
+}
+async function writeHashbookFS(rootDir, obj) {
+  const fh = await rootDir.getFileHandle(HASHBOOK_FILE, { create: true });
+  const w = await fh.createWritable();
+  await w.write(JSON.stringify(obj || {}, null, 2));
+  await w.close();
+}
+async function computeSHA256(file) {
   try {
-    const fileHandle = await rootDir.getFileHandle('memo.json');
-    const file = await fileHandle.getFile();
-    return JSON.parse(await file.text());
-  } catch (e) {
-    return { entries: [] };
-  }
+    const buf = await file.arrayBuffer();
+    const hash = await crypto.subtle.digest('SHA-256', buf);
+    const bytes = new Uint8Array(hash);
+    return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch { return null; }
+}
+async function storedPathExists(rootDir, storedPath) {
+  try {
+    const parts = (storedPath || '').split('/').filter(Boolean);
+    if (!parts.length) return false;
+    let dir = rootDir;
+    for (let i = 0; i < parts.length - 1; i++) { dir = await dir.getDirectoryHandle(parts[i]); }
+    await dir.getFileHandle(parts[parts.length - 1]);
+    return true;
+  } catch { return false; }
 }
 // Hydrate db from local folder
 async function loadFromFolder(dirHandle) {
@@ -301,25 +353,38 @@ async function loadFromFolder(dirHandle) {
   settings.fsEnabled = true;
   if (els.fsStatus) els.fsStatus.textContent = 'enabled';
   saveAll();
-  const data = await readMemoJson(dirHandle);
+  const data = await readEntriesFromFS(dirHandle);
   revokeAllObjectURLs();
   const entries = [];
   for (const rec of (data.entries || [])) {
     const imgs = [];
-    for (const im of (rec.images || [])) {
-      if (im?.storedPath) {
-        try { imgs.push(await urlFromStoredPath(dirHandle, im.storedPath)); }
-        catch (err) { console.warn('Missing image on disk:', im?.storedPath); }
+    const storedPaths = [];
+    const fsImgs = Array.isArray(rec.images) ? rec.images : [];
+    for (const im of fsImgs) {
+      const sp = (im && typeof im === 'object') ? im.storedPath : (typeof im === 'string' ? im : null);
+      if (sp) {
+        try { imgs.push(await urlFromStoredPath(dirHandle, sp)); storedPaths.push(sp); }
+        catch (err) { console.warn('Missing image on disk:', sp); }
       }
     }
-    entries.push({
+    const base = {
       id: rec.id,
       description: rec.description || '',
       category: rec.category || 'Uncategorized',
       tags: rec.tags || [],
       ts: rec.ts || Date.now(),
       images: imgs,
-    });
+      _storedPaths: storedPaths,
+    };
+    // Finance fields pass-through
+    if (MEMO_VARIANT === 'finance') {
+      base.purchaseDate = rec.purchaseDate || (rec.ts ? new Date(rec.ts).toISOString().slice(0,10) : '');
+      base.price = rec.price || 0;
+      base.tax = rec.tax || '';
+      base.adjustment = rec.adjustment || 0;
+      base.total = rec.total || 0;
+    }
+    entries.push(base);
   }
   db.entries = entries;
   const cats = Array.from(new Set(entries.map(e => e.category))).sort();
@@ -423,7 +488,12 @@ function openEntryModal(entry = null) {
   }
 
   modalImages = [];
-  if (entry?.images?.length) { entry.images.forEach(src => modalImages.push({ src, existing: true })); }
+  if (entry?.images?.length) {
+    const stored = Array.isArray(entry._storedPaths) ? entry._storedPaths : [];
+    entry.images.forEach((src, i) => {
+      modalImages.push({ src, existing: true, storedPath: stored[i] || null });
+    });
+  }
   if (els.images) els.images.value = '';
   rebuildDragGrid();
 
@@ -512,7 +582,7 @@ function rebuildDragGrid() {
     const d = document.createElement('div');
     d.className = 'dragitem';
     d.draggable = true;
-    d.innerHTML = `
+  d.innerHTML = `
                 <button class="delimg" title="Remove image" aria-label="Remove image" data-idx="${idx}">×</button>
                 <span class="handle" title="Drag to reorder">⋮⋮ ${idx + 1}</span>
                 <img src="${it.src}" alt="">
@@ -631,25 +701,52 @@ async function onSaveEntry() {
   } else {
     entry.images = [];
     const filesToWrite = [];
+    const keptStoredPaths = [];
     modalImages.forEach(mi => {
       entry.images.push(mi.src);
-      if (mi.file) filesToWrite.push(mi);
+      if (mi.file) filesToWrite.push(mi); else if (mi.existing && mi.storedPath) keptStoredPaths.push(mi.storedPath);
     });
 
     if (settings.fsEnabled && settings.memoDirHandle && filesToWrite.length) {
       const dateFolderName = todayFolder(entry.ts);
       const dateDir = await getOrCreateDir(settings.memoDirHandle, dateFolderName);
       const base = slug(description || 'memo');
+
+      // Load hashbook for de-duplication
+      const book = await readHashbookFS(settings.memoDirHandle);
+
       for (let i = 0; i < filesToWrite.length; i++) {
         const f = filesToWrite[i].file;
         const ext = (f.name.split('.').pop() || 'jpg').toLowerCase();
-        const newName = `${dateFolderName}_${base || 'post'}_${String(i + 1).padStart(2, '0')}.${ext}`;
-        const fileHandle = await dateDir.getFileHandle(newName, { create: true });
-        const writable = await fileHandle.createWritable();
-        await writable.write(await f.arrayBuffer());
-        await writable.close();
-        await updateMemoJson(settings.memoDirHandle, entry, { storedPath: `${dateFolderName}/${newName}`, originalName: f.name });
+        const hash = await computeSHA256(f);
+        let usedStoredPath = null;
+        if (hash && book[hash] && book[hash].storedPath && await storedPathExists(settings.memoDirHandle, book[hash].storedPath)) {
+          // Reuse existing file
+          usedStoredPath = book[hash].storedPath;
+          book[hash].count = Math.max(1, parseInt(book[hash].count || 1, 10) + 1);
+        } else {
+          // Write new file
+          const newName = `${dateFolderName}_${base || 'post'}_${String(i + 1).padStart(2, '0')}.${ext}`;
+          const fileHandle = await dateDir.getFileHandle(newName, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(await f.arrayBuffer());
+          await writable.close();
+          usedStoredPath = `${dateFolderName}/${newName}`;
+          if (hash) book[hash] = { storedPath: usedStoredPath, count: 1 };
+        }
+        await writeHashbookFS(settings.memoDirHandle, book);
+        keptStoredPaths.push(usedStoredPath);
       }
+    }
+
+    // Update FS JSON record to match exactly the kept/new stored paths
+    if (settings.fsEnabled && settings.memoDirHandle) {
+      const originalPaths = Array.isArray((db.entries.find(e => e.id === entry.id)?._storedPaths)) ? (db.entries.find(e => e.id === entry.id)._storedPaths) : [];
+      const removed = originalPaths.filter(sp => sp && !keptStoredPaths.includes(sp));
+      // Decrement hashbook and delete files for removed paths
+      for (const sp of removed) { try { await decrementAndMaybeDelete(settings.memoDirHandle, sp); } catch (e) { console.warn('Failed to cleanup removed image', sp, e); } }
+      await replaceMemoRecordImages(settings.memoDirHandle, entry, keptStoredPaths);
+      entry._storedPaths = keptStoredPaths.slice();
     }
 
     if (isNew) db.entries.push(entry);
@@ -671,6 +768,16 @@ async function onDeleteEntry() {
 
   if (MODE === 'server') {
     await ServerAPI.remove(id);
+  } else {
+    // Local mode: cleanup files via hashbook
+    const entry = db.entries.find(e => e.id === id);
+    if (entry && settings.fsEnabled && settings.memoDirHandle && Array.isArray(entry._storedPaths)) {
+      for (const sp of entry._storedPaths) {
+        try { await decrementAndMaybeDelete(settings.memoDirHandle, sp); } catch (e) { console.warn('Failed to delete image', sp, e); }
+      }
+      // Remove record from FS JSON
+      await removeMemoRecord(settings.memoDirHandle, id);
+    }
   }
   db.entries = db.entries.filter(e => e.id !== id);
   recomputeTags(); saveAll();
@@ -861,7 +968,7 @@ window.MemoCore = {
 // ===== Helpers needed by local FS write path =====
 async function getOrCreateDir(root, name) { return await root.getDirectoryHandle(name, { create: true }); }
 async function updateMemoJson(rootDir, entry, imgInfo) {
-  const filename = 'memo.json';
+  const filename = variantDataFileName();
   let jsonHandle;
   try { jsonHandle = await rootDir.getFileHandle(filename); }
   catch {
@@ -874,12 +981,91 @@ async function updateMemoJson(rootDir, entry, imgInfo) {
   let rec = data.entries.find(x => x.id === entry.id);
   if (!rec) {
     rec = { id: entry.id, description: entry.description, category: entry.category, tags: entry.tags, ts: entry.ts, images: [] };
+    if (MEMO_VARIANT === 'finance') {
+      rec.purchaseDate = entry.purchaseDate; rec.price = entry.price; rec.tax = entry.tax; rec.adjustment = entry.adjustment; rec.total = entry.total;
+    }
     data.entries.push(rec);
   } else {
     rec.description = entry.description; rec.category = entry.category; rec.tags = entry.tags; rec.ts = entry.ts;
+    if (MEMO_VARIANT === 'finance') {
+      rec.purchaseDate = entry.purchaseDate; rec.price = entry.price; rec.tax = entry.tax; rec.adjustment = entry.adjustment; rec.total = entry.total;
+    }
   }
-  if (imgInfo?.storedPath) rec.images.push({ storedPath: imgInfo.storedPath, originalName: imgInfo.originalName });
+  if (imgInfo?.storedPath) {
+    const sp = imgInfo.storedPath;
+    const exists = (rec.images || []).some(im => (im && typeof im === 'object' ? im.storedPath : im) === sp);
+    if (!exists) rec.images.push({ storedPath: sp, originalName: imgInfo.originalName });
+  }
   const w = await jsonHandle.createWritable(); await w.write(JSON.stringify(data, null, 2)); await w.close();
+}
+
+async function replaceMemoRecordImages(rootDir, entry, storedPaths) {
+  const name = variantDataFileName();
+  const fh = await rootDir.getFileHandle(name, { create: true });
+  const file = await fh.getFile();
+  let data = { entries: [] };
+  try { data = JSON.parse(await file.text()); } catch { }
+  let rec = data.entries.find(x => x.id === entry.id);
+  if (!rec) {
+    rec = { id: entry.id, description: entry.description, category: entry.category, tags: entry.tags, ts: entry.ts, images: [] };
+    if (MEMO_VARIANT === 'finance') { rec.purchaseDate = entry.purchaseDate; rec.price = entry.price; rec.tax = entry.tax; rec.adjustment = entry.adjustment; rec.total = entry.total; }
+    data.entries.push(rec);
+  } else {
+    rec.description = entry.description; rec.category = entry.category; rec.tags = entry.tags; rec.ts = entry.ts;
+    if (MEMO_VARIANT === 'finance') { rec.purchaseDate = entry.purchaseDate; rec.price = entry.price; rec.tax = entry.tax; rec.adjustment = entry.adjustment; rec.total = entry.total; }
+  }
+  rec.images = (storedPaths || []).filter(Boolean).map(sp => ({ storedPath: sp }));
+  const w = await fh.createWritable(); await w.write(JSON.stringify(data, null, 2)); await w.close();
+}
+
+function findHashByStoredPath(book, sp) {
+  for (const [h, rec] of Object.entries(book || {})) {
+    if (rec && typeof rec === 'object' && rec.storedPath === sp) return h;
+  }
+  return null;
+}
+
+async function decrementAndMaybeDelete(rootDir, storedPath) {
+  const book = await readHashbookFS(rootDir);
+  const h = findHashByStoredPath(book, storedPath);
+  if (!h) return; // not tracked
+  const rec = book[h];
+  const cnt = Math.max(0, parseInt(rec.count || 0, 10) - 1);
+  if (cnt === 0) {
+    // delete the file and remove mapping
+    try { await deleteStoredPath(rootDir, storedPath); } catch {}
+    delete book[h];
+  } else {
+    rec.count = cnt; book[h] = rec;
+  }
+  await writeHashbookFS(rootDir, book);
+}
+
+async function deleteStoredPath(rootDir, storedPath) {
+  const parts = (storedPath || '').split('/').filter(Boolean);
+  if (parts.length < 2) return;
+  const folder = parts[0]; const fname = parts.slice(1).join('/');
+  let parent = await rootDir.getDirectoryHandle(folder);
+  // Only one-level deep path expected; if nested, walk deeper
+  const fnameParts = fname.split('/').filter(Boolean);
+  for (let i = 0; i < fnameParts.length - 1; i++) { parent = await parent.getDirectoryHandle(fnameParts[i]); }
+  await parent.removeEntry(fnameParts[fnameParts.length - 1]);
+  // Best-effort remove empty first-level date folder
+  if (fnameParts.length === 1) {
+    try { await rootDir.removeEntry(folder); } catch {}
+  }
+}
+
+async function removeMemoRecord(rootDir, id) {
+  const name = variantDataFileName();
+  try {
+    const fh = await rootDir.getFileHandle(name, { create: true });
+    const file = await fh.getFile();
+    let data = { entries: [] };
+    try { data = JSON.parse(await file.text()); } catch { }
+    data.entries = (data.entries || []).filter(x => x.id !== id);
+    const w = await fh.createWritable(); await w.write(JSON.stringify(data, null, 2)); await w.close();
+  } catch (e) { console.warn('removeMemoRecord failed', e); }
 }
 
 // =======================
@@ -934,8 +1120,14 @@ function initChatUI() {
         setChatDisabled(true, 'Unable to load chat history.');
       }
     } else {
-      renderChatHistory([]);
-      setChatDisabled(true, 'Chat requires the server backend.');
+      try {
+        const history = await LocalChat.list();
+        renderChatHistory(history);
+        setChatDisabled(false);
+      } catch (e) {
+        renderChatHistory([]);
+        setChatDisabled(true, 'Chat unavailable.');
+      }
     }
     els.chatDlg.showModal();
     if (!els.chatInput.disabled) {
@@ -947,7 +1139,6 @@ function initChatUI() {
     if (!els.chatInput || !els.chatHistory) return;
     const text = (els.chatInput.value || '').trim();
     if (!text) return;
-    if (MODE !== 'server') return; // disabled in local mode
     // optimistic user append
     const userMsg = { role: 'user', content: text };
     els.chatHistory.appendChild(createChatMsgElement(userMsg));
@@ -955,12 +1146,15 @@ function initChatUI() {
     els.chatInput.value = '';
     els.chatInput.disabled = true; els.chatSendBtn.disabled = true;
     try {
-      const res = await ServerAPI.chatSend(text);
-      const msgs = res && res.messages ? res.messages : [];
-      // Append assistant reply if available (avoid duplicating user message)
-      const assistant = msgs.find(m => m.role === 'assistant');
-      if (assistant) {
-        els.chatHistory.appendChild(createChatMsgElement(assistant));
+      if (MODE === 'server') {
+        const res = await ServerAPI.chatSend(text);
+        const msgs = res && res.messages ? res.messages : [];
+        const assistant = msgs.find(m => m.role === 'assistant');
+        if (assistant) els.chatHistory.appendChild(createChatMsgElement(assistant));
+      } else {
+        const { messages } = await LocalChat.send(text);
+        const assistant = messages.find(m => m.role === 'assistant');
+        if (assistant) els.chatHistory.appendChild(createChatMsgElement(assistant));
       }
       els.chatHistory.scrollTop = els.chatHistory.scrollHeight;
     } catch (e) {
@@ -973,12 +1167,10 @@ function initChatUI() {
   }
 
   async function doClear() {
-    if (MODE !== 'server') { els.chatHistory.innerHTML = ''; return; }
     try {
-      await ServerAPI.chatClear();
+      if (MODE === 'server') await ServerAPI.chatClear(); else await LocalChat.clear();
       els.chatHistory.innerHTML = '';
     } catch (e) {
-      // show inline error
       const m = { role: 'assistant', content: 'Failed to clear history.' };
       els.chatHistory.appendChild(createChatMsgElement(m));
     }
@@ -992,3 +1184,39 @@ function initChatUI() {
   });
   if (els.chatClearBtn) els.chatClearBtn.addEventListener('click', doClear);
 }
+
+// =======================
+// Local Chat (no server): FS if available, else localStorage
+const LocalChat = {
+  async list() {
+    if (settings.fsEnabled && settings.memoDirHandle) {
+      const raw = await readTextFileIfExists(settings.memoDirHandle, chatDataFileName());
+      if (!raw) return [];
+      try { return JSON.parse(raw) || []; } catch { return []; }
+    }
+    try { const raw = localStorage.getItem(CHAT_KEY); return raw ? (JSON.parse(raw) || []) : []; } catch { return []; }
+  },
+  async send(message) {
+    const now = new Date().toISOString();
+    const user = { id: uid(), role: 'user', content: message, ts: now };
+    const bot = { id: uid(), role: 'assistant', content: 'FEATURE NOT SUPPORTED YET', ts: new Date().toISOString() };
+    const msgs = await this.list();
+    msgs.push(user, bot);
+    if (settings.fsEnabled && settings.memoDirHandle) {
+      const fh = await settings.memoDirHandle.getFileHandle(chatDataFileName(), { create: true });
+      const w = await fh.createWritable(); await w.write(JSON.stringify(msgs, null, 2)); await w.close();
+    } else {
+      localStorage.setItem(CHAT_KEY, JSON.stringify(msgs));
+    }
+    return { messages: [user, bot] };
+  },
+  async clear() {
+    if (settings.fsEnabled && settings.memoDirHandle) {
+      const fh = await settings.memoDirHandle.getFileHandle(chatDataFileName(), { create: true });
+      const w = await fh.createWritable(); await w.write(JSON.stringify([], null, 2)); await w.close();
+    } else {
+      localStorage.setItem(CHAT_KEY, JSON.stringify([]));
+    }
+    return [];
+  }
+};

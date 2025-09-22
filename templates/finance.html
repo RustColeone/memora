@@ -7,9 +7,18 @@
     <meta content="width=device-width, initial-scale=1" name="viewport" />
     <title>Finance — Purchases &amp; Receipts</title>
     <meta name="memo-variant" content="finance" />
-
-    <link href="static/memo.css" rel="stylesheet" />
-    <link href="static/memo-finance.css" rel="stylesheet" />
+    <script>
+        (function(){
+            var hasServer = location.protocol === 'http:' || location.protocol === 'https:';
+            var STATIC_BASE = hasServer ? '/static/' : 'static/';
+            ['memo.css','memo-finance.css'].forEach(function(f){
+                var l = document.createElement('link');
+                l.rel = 'stylesheet';
+                l.href = STATIC_BASE + f;
+                document.head.appendChild(l);
+            });
+        })();
+    </script>
 </head>
 
 <body>
@@ -233,10 +242,26 @@
         </div>
     </dialog>
 
-    <script src="static/memo-core.js"></script>
-    <script src="static/memo-variant-finance.js"></script>
-    <script src="static/memo-filter.js"></script>
-    <script src="static/memo-lightbox.js"></script>
+    <script>
+        (function(){
+            var hasServer = location.protocol === 'http:' || location.protocol === 'https:';
+            var STATIC_BASE = hasServer ? '/static/' : 'static/';
+            var files = [
+                'memo-core.js',
+                'memo-variant-finance.js',
+                'memo-filter.js',
+                'memo-lightbox.js'
+            ];
+            function loadSeq(i){
+                if(i >= files.length) return;
+                var s = document.createElement('script');
+                s.src = STATIC_BASE + files[i];
+                s.onload = function(){ loadSeq(i+1); };
+                document.body.appendChild(s);
+            }
+            loadSeq(0);
+        })();
+    </script>
 </body>
 
 </html>
