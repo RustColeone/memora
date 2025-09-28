@@ -35,7 +35,9 @@
       })
       .sort((a, b) => b.ts - a.ts);
 
-    if (els.feed) els.feed.innerHTML = '';
+  if (els.feed) els.feed.innerHTML = '';
+  // Expose filtered list for external consumers (e.g., chat context)
+  window.MemoVariant.__lastFiltered = () => filtered.slice();
     for (const e of filtered) {
       const card = document.createElement('div');
       card.className = 'card';
@@ -133,6 +135,7 @@
     renderFeed,
     openDetail,
     normalizeServerMemo,
+    __lastFiltered: () => [], // replaced after first render
   };
 
   window.MemoCore.start();

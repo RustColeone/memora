@@ -6,6 +6,22 @@ from werkzeug.utils import secure_filename
 from datetime import datetime
 from threading import Lock
 import hashlib
+import textwrap
+
+# Optional LLM provider SDKs (installed only if you want AI chat replies)
+try:  # OpenAI (>=1.0 new SDK) - optional
+    from openai import OpenAI  # type: ignore
+    _openai_available = True
+except Exception:
+    OpenAI = None  # type: ignore
+    _openai_available = False
+
+try:  # Google Gemini
+    import google.generativeai as genai  # type: ignore
+    _gemini_available = True
+except Exception:
+    genai = None  # type: ignore
+    _gemini_available = False
 
 # --- Configuration ---
 USE_SERVER_BACKEND = os.environ.get("USE_SERVER_BACKEND", "true").lower() == "true"
@@ -18,6 +34,18 @@ HASHBOOK_FILE = os.path.join(DATA_DIR, 'hashbook.json')
 FINANCE_DATA_FILE = os.path.join(DATA_DIR, 'finance.json')
 CHAT_DEFAULT_FILE = os.path.join(DATA_DIR, 'chat.json')
 CHAT_FINANCE_FILE = os.path.join(DATA_DIR, 'chat_finance.json')
+
+# --- LLM Configuration (optional) ---
+LLM_PROVIDER = 'gemini'  # 'openai' | 'gemini'
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+LLM_MODEL = os.environ.get('LLM_MODEL')  # if unset we'll choose a reasonable default per provider
+LLM_SYSTEM_PROMPT = os.environ.get('LLM_SYSTEM_PROMPT') or (
+    "You are an efficient assistant embedded in a personal memo system."
+    " Provide concise, helpful answers. If user asks to reference memos, you can reason over the conversation context only;"
+    " you cannot actually read files unless explicitly given their content."
+)
+LLM_MAX_MESSAGES = int(os.environ.get('LLM_MAX_MESSAGES', '14'))  # number of recent messages (user+assistant) to send
 
 # Initialize Flask app
 app = Flask(__name__, static_folder='static', template_folder='templates')
@@ -264,6 +292,76 @@ def is_file_in_hashbook(file_storage):
 
     return False, file_hash, None
 
+# --- LLM Integration Helpers ---
+def _generate_llm_reply(history_messages, latest_user_text: str) -> str:
+    """Generate assistant reply using configured LLM provider.
+
+    history_messages: list of persisted dicts with keys (role: user|assistant, content)
+    latest_user_text: raw user input (already in history)
+
+    Returns plain string reply. If provider misconfigured or errors, returns fallback notice.
+    """
+    provider = LLM_PROVIDER
+    if not provider:
+        return "(AI disabled: Set LLM_PROVIDER=openai or gemini and API key env vars to enable.)"
+
+    try:
+        if provider == 'openai':
+            if not _openai_available:
+                return "(OpenAI SDK unavailable on server)"
+            if not OPENAI_API_KEY:
+                return "(Missing OPENAI_API_KEY)"
+            client = OpenAI(api_key=OPENAI_API_KEY)
+            model = LLM_MODEL or 'gpt-4o-mini'
+            # Convert history
+            msgs = []
+            if LLM_SYSTEM_PROMPT:
+                msgs.append({"role": "system", "content": LLM_SYSTEM_PROMPT})
+            for m in history_messages:
+                r = m.get('role')
+                if r in ('user','assistant', 'system'):
+                    msgs.append({"role": r, "content": m.get('content','')[:4000]})
+            # Call OpenAI
+            resp = client.chat.completions.create(model=model, messages=msgs, temperature=0.7,)
+            return (resp.choices[0].message.content or '').strip()
+        elif provider == 'gemini':
+            if not _gemini_available:
+                return "(Gemini SDK unavailable on server)"
+            if not GEMINI_API_KEY:
+                return "(Missing GEMINI_API_KEY)"
+            genai.configure(api_key=GEMINI_API_KEY)
+            model_name = LLM_MODEL or 'gemini-2.5-flash-lite-preview-06-17'
+            # Compose a single prompt with light formatting (Gemini Python SDK chat style)
+            convo_lines = []
+            if LLM_SYSTEM_PROMPT:
+                convo_lines.append(f"System: {LLM_SYSTEM_PROMPT}")
+            for m in history_messages:
+                r = m.get('role')
+                if r in ('user','assistant', 'system'):
+                    convo_lines.append(f"{r.capitalize()}: {m.get('content','')}")
+            convo_lines.append(f"User: {latest_user_text}")
+            convo_lines.append("Assistant:")
+            prompt = "\n".join(convo_lines)[-12000:]  # trim safety
+            model = genai.GenerativeModel(model_name)
+            resp = model.generate_content(prompt)
+            if hasattr(resp, 'text') and resp.text:
+                return resp.text.strip()
+            # Fallback: try to join candidates
+            parts = []
+            try:
+                for cand in getattr(resp, 'candidates', []) or []:
+                    for part in getattr(cand, 'content', {}).get('parts', []):
+                        t = getattr(part, 'text', '') or ''
+                        if t:
+                            parts.append(t)
+            except Exception:
+                pass
+            return (" ".join(parts).strip()) or "(No response from Gemini)"
+        else:
+            return f"(Unsupported LLM_PROVIDER '{provider}')"
+    except Exception as e:
+        return f"(LLM error: {e.__class__.__name__}: {e})"
+
 # --- Chat API ---
 @app.route('/api/chat', methods=['GET'])
 def chat_list():
@@ -279,14 +377,58 @@ def chat_send():
     variant = _get_variant()
     payload = request.get_json(force=True, silent=True) or {}
     user_text = (payload.get('message') or '').strip()
+    visible_ids = payload.get('visibleIds') or []
+    if isinstance(visible_ids, list):
+        visible_ids = [str(i) for i in visible_ids if isinstance(i, (str,int))]
+    else:
+        visible_ids = []
     if not user_text:
         return jsonify({"message": "Empty message"}), 400
     history = get_chat_for_variant(variant)
     now = datetime.utcnow().isoformat() + 'Z'
     user_msg = {"id": str(uuid.uuid4()), "role": "user", "content": user_text, "ts": now}
-    bot_reply_text = "FEATURE NOT SUPPORTED YET"
-    bot_msg = {"id": str(uuid.uuid4()), "role": "assistant", "content": bot_reply_text, "ts": datetime.utcnow().isoformat() + 'Z'}
+
+    # Append user first so it is part of persisted history regardless of LLM success
     history.append(user_msg)
+
+    # Prepare the subset of history to send to LLM (exclude any future assistant message)
+    ctx = history[-LLM_MAX_MESSAGES:]
+
+    # Build filtered entries summary (server-side read for provided IDs)
+    entries_summary = ''
+    if visible_ids:
+        try:
+            all_entries = get_memos_for_variant(variant)
+            subset = [e for e in all_entries if str(e.get('id')) in set(visible_ids)]
+            # Limit to avoid blowing context
+            subset = subset[: min(len(subset), 60)]
+            lines = []
+            for e in subset:
+                desc = (e.get('description') or '').replace('\n',' ')[:160]
+                tags = ','.join(e.get('tags') or [])
+                category = e.get('category') or 'Uncategorized'
+                # For finance variant include key numeric fields
+                if variant == 'finance':
+                    pd = e.get('purchaseDate') or ''
+                    price = e.get('price')
+                    tax = e.get('tax')
+                    adj = e.get('adjustment')
+                    total = e.get('total')
+                    lines.append(f"ID={e.get('id')} | date={pd} | category={category} | price={price} tax={tax} adj={adj} total={total} | tags={tags} | desc={desc}")
+                else:
+                    ts = e.get('ts')
+                    lines.append(f"ID={e.get('id')} | date = {e.get('createdAt')} | ts={ts} | category={category} | tags={tags} | desc={desc}")
+            entries_summary = '\n'.join(lines)
+        except Exception as e:
+            entries_summary = f"(Could not build entries summary: {e})"
+
+    if entries_summary:
+        synthetic_context_message = {"role": "system", "content": f"Visible filtered entries (count={len(entries_summary.splitlines())}):\n" + entries_summary }
+        ctx = [synthetic_context_message] + ctx
+
+    assistant_reply = _generate_llm_reply(ctx, user_text)
+
+    bot_msg = {"id": str(uuid.uuid4()), "role": "assistant", "content": assistant_reply, "ts": datetime.utcnow().isoformat() + 'Z'}
     history.append(bot_msg)
     save_chat_for_variant(history, variant)
     return jsonify({"messages": [user_msg, bot_msg]})

@@ -195,10 +195,40 @@ const ServerAPI = {
   },
   async chatSend(message) {
     const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
+    // Collect currently visible entry IDs (variant-specific DOM shapes)
+    let visibleIds = [];
+    try {
+      if (MEMO_VARIANT === 'finance') {
+        // finance variant rows: <tr> with click handler; need to map from description cell text not reliable -> expose via data-id if available
+        // We'll look for detail trigger attributes by reconstructing from in-memory filtered order via variant render process if exported
+        const { db } = window.MemoCore.getState();
+        // Attempt reading IDs from table rows if we enhance variant later; fallback to all entries (capped)
+        const rows = document.querySelectorAll('table.listtable tbody tr');
+        rows.forEach(rw => {
+          const id = rw.getAttribute('data-id'); if (id) visibleIds.push(id);
+        });
+        if (!visibleIds.length) {
+          // Fallback: approximate visible set by applying client filters again
+          if (window.MemoVariant && typeof window.MemoVariant.__lastFiltered === 'function') {
+            visibleIds = window.MemoVariant.__lastFiltered().map(e=>e.id);
+          }
+        }
+      } else {
+        // default variant cards do not have data-id; reconstruct from ordering by re-running filter logic if helper exists
+        const cards = document.querySelectorAll('.feed .card');
+        // If future enhancement adds data-id attribute, capture it; otherwise fallback to recompute
+        cards.forEach(c => { const id = c.getAttribute('data-id'); if (id) visibleIds.push(id); });
+        if (!visibleIds.length && window.MemoVariant && typeof window.MemoVariant.__lastFiltered === 'function') {
+            visibleIds = window.MemoVariant.__lastFiltered().map(e=>e.id);
+        }
+      }
+    } catch (err) { /* ignore collection errors */ }
+    // De-duplicate & cap to avoid huge payloads
+    visibleIds = Array.from(new Set(visibleIds)).slice(0, 100);
     const r = await fetch(`${API_BASE}/api/chat${qp}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message })
+      body: JSON.stringify({ message, visibleIds })
     });
     if (!r.ok) throw new Error('Failed to send chat message');
     return r.json(); // { messages: [ userMsg, botMsg ] }

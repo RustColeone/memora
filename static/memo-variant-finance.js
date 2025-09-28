@@ -148,8 +148,11 @@
     `;
     const tbody = table.querySelector('tbody');
 
+    // Expose filtered list for chat context
+    window.MemoVariant.__lastFiltered = () => filtered.slice();
     for (const e of filtered) {
       const tr = document.createElement('tr');
+      tr.setAttribute('data-id', e.id);
       const dateCell = document.createElement('td'); dateCell.className = 'col-date';
       dateCell.textContent = e.purchaseDate || (e.ts ? (new Date(e.ts)).toISOString().slice(0,10) : ''); tr.appendChild(dateCell);
 
