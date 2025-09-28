@@ -81,6 +81,7 @@
       tags: m.tags || [],
       ts: m.ts || Date.now(),
       images: m.images || [],
+      attachments: m.attachments || [],
       purchaseDate: m.purchaseDate || (m.ts ? new Date(m.ts).toISOString().slice(0,10) : ''),
       price: m.price || 0,
       tax: m.tax || '',
@@ -155,7 +156,7 @@
       const descCell = document.createElement('td'); descCell.className = 'col-desc';
       const descWrap = document.createElement('div'); descWrap.className = 'desc-cell';
       const descText = document.createElement('div'); descText.className = 'desc-text';
-      const short = (e.description || ''); descText.textContent = short.length > 80 ? short.slice(0, 80) + '…' : short;
+      const short = (e.description || ''); descText.textContent = short.length > 60 ? short.slice(0, 60) + '…' : short;
       if (e.tags?.length) {
         const tagBar = document.createElement('div'); tagBar.className = 'tagbar';
         tagBar.innerHTML = (e.tags || []).map(t => `<span class="tagpill">#${t}</span>`).join('');
@@ -164,7 +165,11 @@
       descWrap.appendChild(descText); descCell.appendChild(descWrap); tr.appendChild(descCell);
 
       const imagesCell = document.createElement('td'); imagesCell.className = 'col-images images-cell';
-      const imgs = Array.isArray(e.images) ? e.images.filter(Boolean) : []; const count = imgs.length;
+  const isImage = window.MemoCore.isImage;
+  const imgsAll = Array.isArray(e.images) ? e.images.filter(Boolean) : [];
+  const imgs = imgsAll.filter(src => isImage(src));
+  const otherFiles = (e.attachments || []).filter(a => a && a.url && !isImage(a.url));
+  const count = imgs.length;
       if (count > 0) {
         const container = document.createElement('div'); container.className = 'inline-thumbs';
         if (count <= 2) {
@@ -174,6 +179,17 @@
           const more = document.createElement('div'); more.className = 'thumb more'; more.textContent = `+${count - 1}`; more.title = 'Click to preview'; more.addEventListener('click', (ev) => { ev.stopPropagation(); openLightbox(e.id, 1); }); container.appendChild(more);
         }
         imagesCell.appendChild(container);
+      }
+      if (otherFiles.length) {
+        const fl = document.createElement('div');
+        fl.style.display = 'flex'; fl.style.flexDirection = 'column'; fl.style.gap = '2px'; fl.style.marginTop = '4px';
+        otherFiles.slice(0,3).forEach(a => {
+          const link = document.createElement('a'); link.href = a.url; link.target = '_blank'; link.rel = 'noopener'; link.textContent = '📄 ' + (a.name || a.url.split('/').pop()); link.style.fontSize='11px'; link.style.color='#93c5fd'; link.style.textDecoration='none'; fl.appendChild(link);
+        });
+        if (otherFiles.length > 3) {
+          const more = document.createElement('div'); more.className='muted'; more.style.fontSize='10px'; more.textContent = '+'+(otherFiles.length-3)+' more'; fl.appendChild(more);
+        }
+        imagesCell.appendChild(fl);
       }
       tr.appendChild(imagesCell);
 
@@ -253,7 +269,10 @@
     const { db } = window.MemoCore.getState();
     const e = db.entries.find(x => x.id === id);
     if (!e || !els.detailContent) return;
-    const imgs = (e.images || []).map((src, i) => `<img data-eid="${e.id}" data-idx="${i}" src="${src}" alt="" class="thumb" style="width:60px;height:60px;margin:2px;cursor:pointer;">`).join('');
+    const isImage = window.MemoCore.isImage;
+    const imgsOnly = (e.images || []).filter(src => isImage(src));
+    const otherFiles = (e.attachments || []).filter(a => a && a.url && !isImage(a.url));
+    const imgs = imgsOnly.map((src, i) => `<img data-eid="${e.id}" data-idx="${i}" src="${src}" alt="" class="thumb" style="width:60px;height:60px;margin:2px;cursor:pointer;">`).join('');
     els.detailContent.innerHTML = `
       <div class="muted">Date: ${e.purchaseDate || (e.ts ? (new Date(e.ts)).toISOString().slice(0, 10) : '')} • ${e.category}</div>
       <h3>${e.description ? e.description.replace(/</g, '&lt;') : '(No description)'}</h3>
@@ -268,6 +287,7 @@
           </tr>
       </table>
       <div class="thumbs" id="detailThumbs" style="margin-top:10px">${imgs || '<span class="muted">No images</span>'}</div>
+      ${otherFiles.length ? `<div class="filelist" style="margin-top:10px;display:grid;gap:6px;">` + otherFiles.map(a=>`<a href="${a.url}" target="_blank" rel="noopener" style="color:#93c5fd;text-decoration:none;font-size:13px;">📄 ${a.name || a.url.split('/').pop()}</a>`).join('') + `</div>`:''}
       <div class="muted">Tip: Click to view. Drag to reorder (saves on drop).</div>
     `;
     const cont = els.detailContent.querySelector('#detailThumbs');
@@ -289,8 +309,10 @@
       im.addEventListener('drop', (ev) => {
         ev.preventDefault();
         const dst = idx; if (startIdx === null || startIdx === dst) return;
-        const arr = e.images.slice(); const item = arr.splice(startIdx, 1)[0]; arr.splice(dst, 0, item);
-        e.images = arr; openDetail(e.id);
+        const arr = imgsOnly.slice(); const item = arr.splice(startIdx, 1)[0]; arr.splice(dst, 0, item);
+        const nonImgs = (e.images || []).filter(src => !isImage(src));
+        e.images = arr.concat(nonImgs);
+        openDetail(e.id);
       });
       im.addEventListener('click', () => openLightbox(e.id, idx));
     });

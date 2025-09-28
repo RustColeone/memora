@@ -125,7 +125,8 @@ let settings = ({ categories: ['Uncategorized'], tags: [], tagCounts: {}, fsEnab
 
 let workingTags = new Set();
 let editingId = null;
-let modalImages = []; // [{src, file?, existing}]
+let modalImages = []; // [{src, file?, existing, storedPath?}]
+let modalFilesExtra = []; // non-image attachments (e.g. pdf) [{name, url, file?, existing, storedPath?, type}]
 let dragSrcIdx = null;
 
 let activeFilters = { dateFrom: null, dateTo: null, cats: new Set(), tags: new Set() };
@@ -491,14 +492,28 @@ function openEntryModal(entry = null) {
   }
 
   modalImages = [];
+  modalFilesExtra = [];
   if (entry?.images?.length) {
     const stored = Array.isArray(entry._storedPaths) ? entry._storedPaths : [];
     entry.images.forEach((src, i) => {
       modalImages.push({ src, existing: true, storedPath: stored[i] || null });
     });
   }
+  // Load prior attachments array if present
+  if (Array.isArray(entry?.attachments)) {
+    entry.attachments.forEach(att => {
+      if (!att || !att.url) return;
+      const isImg = /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i.test(att.url);
+      if (isImg) {
+        if (!modalImages.some(mi => mi.src === att.url)) modalImages.push({ src: att.url, existing: true, storedPath: att.storedPath || null });
+      } else {
+        modalFilesExtra.push({ name: att.name || att.url.split('/').pop(), url: att.url, existing: true, storedPath: att.storedPath || null, type: att.type || 'application/octet-stream' });
+      }
+    });
+  }
   if (els.images) els.images.value = '';
   rebuildDragGrid();
+  renderExtraAttachmentsList();
 
   if (els.entryDlg) els.entryDlg.showModal();
 }
@@ -614,11 +629,17 @@ function rebuildDragGrid() {
 }
 function addImageFiles(files) {
   for (const f of files) {
-    if (!f || !f.type?.startsWith('image/')) continue;
-    const url = URL.createObjectURL(f);
-    modalImages.push({ src: url, file: f, existing: false });
+    if (!f) continue;
+    if (f.type?.startsWith('image/')) {
+      const url = URL.createObjectURL(f);
+      modalImages.push({ src: url, file: f, existing: false });
+    } else if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) {
+      const url = URL.createObjectURL(f);
+      modalFilesExtra.push({ name: f.name, url, file: f, existing: false, type: 'application/pdf' });
+    }
   }
   rebuildDragGrid();
+  renderExtraAttachmentsList();
 }
 
 if (els.images) {
@@ -642,7 +663,7 @@ if (els.dropzone && els.images) {
     for (const it of items) {
       if (it.kind === 'file') {
         const f = it.getAsFile();
-        if (f && f.type?.startsWith('image/')) files.push(f);
+        if (f && (f.type?.startsWith('image/') || f.type === 'application/pdf')) files.push(f);
       }
     }
     if (files.length) addImageFiles(files);
@@ -665,9 +686,9 @@ async function onSaveEntry() {
   const category = (els.categoryInput && els.categoryInput.value) ? els.categoryInput.value : 'Uncategorized';
   const ts = Date.now();
   const tags = [...workingTags];
-  if (!description && modalImages.length === 0) { alert('Please enter a description or add at least one image.'); return; }
+  if (!description && modalImages.length === 0 && modalFilesExtra.length === 0) { alert('Please enter a description or add at least one file.'); return; }
 
-  let entry = editingId ? db.entries.find(e => e.id === editingId) : { id: uid(), images: [] };
+  let entry = editingId ? db.entries.find(e => e.id === editingId) : { id: uid(), images: [], attachments: [] };
   const isNew = !editingId;
   entry.description = description;
   entry.category = category;
@@ -681,8 +702,10 @@ async function onSaveEntry() {
 
   // Build images for submit:
   let imagesFinal = [];
+  let attachmentsFinal = [];
   modalImages.forEach(mi => { if (mi.existing) imagesFinal.push(mi.src); });
   const filesToSave = modalImages.filter(mi => mi.file);
+  const extraToSave = modalFilesExtra.filter(f => f.file);
 
   if (MODE === 'server') {
     for (let i = 0; i < filesToSave.length; i++) {
@@ -690,7 +713,15 @@ async function onSaveEntry() {
       const res = await ServerAPI.upload(f);
       if (res && res.url) imagesFinal.push(res.url);
     }
+    for (let i = 0; i < extraToSave.length; i++) {
+      const f = extraToSave[i].file;
+      const res = await ServerAPI.upload(f);
+      if (res && res.url) attachmentsFinal.push({ name: f.name, url: res.url, type: f.type || 'application/octet-stream' });
+    }
     entry.images = imagesFinal;
+    entry.attachments = attachmentsFinal.concat(
+      modalFilesExtra.filter(f => f.existing && f.url).map(f => ({ name: f.name, url: f.url, type: f.type || 'application/octet-stream' }))
+    );
 
     let saved;
     if (isNew) saved = await ServerAPI.create(entry);
@@ -703,14 +734,17 @@ async function onSaveEntry() {
     }
   } else {
     entry.images = [];
+    entry.attachments = [];
     const filesToWrite = [];
     const keptStoredPaths = [];
+    const extraFilesToWrite = [];
     modalImages.forEach(mi => {
       entry.images.push(mi.src);
       if (mi.file) filesToWrite.push(mi); else if (mi.existing && mi.storedPath) keptStoredPaths.push(mi.storedPath);
     });
+    modalFilesExtra.forEach(f => { if (f.file) extraFilesToWrite.push(f); else if (f.existing && f.storedPath) keptStoredPaths.push(f.storedPath); });
 
-    if (settings.fsEnabled && settings.memoDirHandle && filesToWrite.length) {
+    if (settings.fsEnabled && settings.memoDirHandle && (filesToWrite.length || extraFilesToWrite.length)) {
       const canWrite = await ensureWritePermission(settings.memoDirHandle);
       if (!canWrite) {
         alert('Cannot write to the chosen folder (permission denied). The entry will be saved in browser storage only.');
@@ -722,18 +756,16 @@ async function onSaveEntry() {
       // Load hashbook for de-duplication
       const book = await readHashbookFS(settings.memoDirHandle);
 
-      for (let i = 0; i < filesToWrite.length; i++) {
-        const f = filesToWrite[i].file;
-        const ext = (f.name.split('.').pop() || 'jpg').toLowerCase();
+      const handleOne = async (fObj, idx, prefix) => {
+        const f = fObj.file;
+        const ext = (f.name.split('.').pop() || 'dat').toLowerCase();
         const hash = await computeSHA256(f);
         let usedStoredPath = null;
         if (canWrite && hash && book[hash] && book[hash].storedPath && await storedPathExists(settings.memoDirHandle, book[hash].storedPath)) {
-          // Reuse existing file
           usedStoredPath = book[hash].storedPath;
           book[hash].count = Math.max(1, parseInt(book[hash].count || 1, 10) + 1);
         } else if (canWrite) {
-          // Write new file
-          const newName = `${dateFolderName}_${base || 'post'}_${String(i + 1).padStart(2, '0')}.${ext}`;
+          const newName = `${dateFolderName}_${base || 'post'}_${prefix}${String(idx + 1).padStart(2, '0')}.${ext}`;
           const fileHandle = await dateDir.getFileHandle(newName, { create: true });
           const writable = await fileHandle.createWritable();
           await writable.write(await f.arrayBuffer());
@@ -744,8 +776,19 @@ async function onSaveEntry() {
         if (canWrite) {
           await writeHashbookFS(settings.memoDirHandle, book);
           keptStoredPaths.push(usedStoredPath);
+          if (!f.type?.startsWith('image/')) {
+            entry.attachments.push({ name: f.name, url: usedStoredPath, storedPath: usedStoredPath, type: f.type || 'application/octet-stream' });
+          }
+        } else if (!f.type?.startsWith('image/')) {
+          entry.attachments.push({ name: f.name, url: fObj.url, type: f.type || 'application/octet-stream' });
         }
-      }
+      };
+      for (let i = 0; i < filesToWrite.length; i++) await handleOne(filesToWrite[i], i, 'img');
+      for (let i = 0; i < extraFilesToWrite.length; i++) await handleOne(extraFilesToWrite[i], i, 'file');
+      // include existing non-image attachments that were not removed
+      modalFilesExtra.filter(f => f.existing && !f.file).forEach(f => {
+        entry.attachments.push({ name: f.name, url: f.url, storedPath: f.storedPath, type: f.type || 'application/octet-stream' });
+      });
     }
 
     // Update FS JSON record to match exactly the kept/new stored paths
@@ -758,7 +801,7 @@ async function onSaveEntry() {
       const removed = originalPaths.filter(sp => sp && !keptStoredPaths.includes(sp));
       // Decrement hashbook and delete files for removed paths
       for (const sp of removed) { try { await decrementAndMaybeDelete(settings.memoDirHandle, sp); } catch (e) { console.warn('Failed to cleanup removed image', sp, e); } }
-      await replaceMemoRecordImages(settings.memoDirHandle, entry, keptStoredPaths);
+      await replaceMemoRecordImages(settings.memoDirHandle, entry, keptStoredPaths, entry.attachments || []);
       entry._storedPaths = keptStoredPaths.slice();
       }
     }
@@ -974,10 +1017,7 @@ async function coreInit() {
 }
 
 // Expose a tiny API for variants
-window.MemoCore = {
-  start: coreInit,
-  getState: () => ({ db, settings, activeFilters, els }),
-};
+window.MemoCore = { start: coreInit, getState: () => ({ db, settings, activeFilters, els }), isImage: (u) => /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i.test(u || '') };
 
 // ===== Helpers needed by local FS write path =====
 async function getOrCreateDir(root, name) { return await root.getDirectoryHandle(name, { create: true }); }
@@ -1013,7 +1053,7 @@ async function updateMemoJson(rootDir, entry, imgInfo) {
   const w = await jsonHandle.createWritable(); await w.write(JSON.stringify(data, null, 2)); await w.close();
 }
 
-async function replaceMemoRecordImages(rootDir, entry, storedPaths) {
+async function replaceMemoRecordImages(rootDir, entry, storedPaths, attachments) {
   const name = variantDataFileName();
   const fh = await rootDir.getFileHandle(name, { create: true });
   const file = await fh.getFile();
@@ -1029,7 +1069,42 @@ async function replaceMemoRecordImages(rootDir, entry, storedPaths) {
     if (MEMO_VARIANT === 'finance') { rec.purchaseDate = entry.purchaseDate; rec.price = entry.price; rec.tax = entry.tax; rec.adjustment = entry.adjustment; rec.total = entry.total; }
   }
   rec.images = (storedPaths || []).filter(Boolean).map(sp => ({ storedPath: sp }));
+  if (attachments && attachments.length) {
+    rec.attachments = attachments.map(a => ({ name: a.name, storedPath: a.storedPath || a.url, type: a.type }));
+  }
   const w = await fh.createWritable(); await w.write(JSON.stringify(data, null, 2)); await w.close();
+}
+// Render list of non-image attachments below drag grid
+function renderExtraAttachmentsList() {
+  const hostParent = els.dragGrid ? els.dragGrid.parentElement : null;
+  if (!hostParent) return;
+  let box = hostParent.querySelector('#extraAttachments');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'extraAttachments';
+    box.style.display = 'grid';
+    box.style.gap = '6px';
+    box.style.marginTop = '8px';
+    hostParent.appendChild(box);
+  }
+  if (!modalFilesExtra.length) { box.innerHTML = ''; return; }
+  box.innerHTML = '<div class="muted" style="grid-column:1/-1">Other files</div>' + modalFilesExtra.map((f,i)=>{
+    return `<div class="attach-row" data-idx="${i}" style="display:flex;align-items:center;gap:8px;background:#0b1222;border:1px solid var(--border);padding:6px 10px;border-radius:10px;font-size:13px;">
+      <span>📄</span>
+      <a href="${f.url}" target="_blank" rel="noopener" style="color:#93c5fd;text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</a>
+      <button class="ghost" data-act="remove" title="Remove">×</button>
+    </div>`;
+  }).join('');
+  box.querySelectorAll('button[data-act=remove]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const idx = parseInt(btn.closest('.attach-row').dataset.idx,10);
+      const it = modalFilesExtra[idx];
+      try { if (it?.file && it.url?.startsWith('blob:')) URL.revokeObjectURL(it.url); } catch{}
+      modalFilesExtra.splice(idx,1);
+      renderExtraAttachmentsList();
+    });
+  });
 }
 
 function findHashByStoredPath(book, sp) {

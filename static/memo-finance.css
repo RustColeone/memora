@@ -15,6 +15,24 @@
     cursor: zoom-in;
 }
 
+/* PDF thumb (finance) */
+.inline-thumbs .pdf-thumb {
+    width: 56px;
+    height: 56px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #0b1222;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+    text-decoration: none;
+    color: #f1f5f9;
+    letter-spacing: .5px;
+}
+.inline-thumbs .pdf-thumb:hover { background:#132036; }
+
 /* Use table mode only when the feed says so */
 .feed[data-listmode="table"] {
     display: block;
@@ -148,9 +166,18 @@
 }
 
 .desc-text {
-    min-width: 240px;
+    min-width: 100px;
     max-width: 100%;
     word-wrap: break-word;
+    font-size: clamp(12px, 0.82rem + 0.12vw, 15px);
+}
+
+/* Fluid base sizing (desktop down to ~700px) */
+.listtable td,
+.listtable th {
+    /* Scales down smoothly, never smaller than 12px, never larger than 15px */
+    font-size: clamp(12px, 0.86rem + 0.15vw, 15px);
+    line-height: 1.3;
 }
 
 
@@ -178,24 +205,41 @@
 }
 
 /* Hide ADJUSTMENTS first */
+/* Also, slight overall reduction just below tablet widths */
 @media (max-width: 880px) {
     .feed[data-listmode="table"] .listtable tr>*:nth-child(6) {
         display: none;
     }
+    .listtable td,
+    .listtable th { font-size: 13px; }
+    .desc-text { font-size: 13px; }
 }
 
 /* Then hide TAX */
+/* Phones in landscape / small tablets portrait */
 @media (max-width: 640px) {
     .feed[data-listmode="table"] .listtable tr>*:nth-child(5) {
         display: none;
     }
+    .listtable td,
+    .listtable th { font-size: 12.5px; }
+    .desc-text { font-size: 12.5px; }
 }
 
 /* Then hide IMAGES */
+/* Standard phone widths */
+/* relax description width once numbers disappear */
 @media (max-width: 510px) {
     .feed[data-listmode="table"] .listtable tr>*:nth-child(3) {
         display: none;
     }
+    .feed[data-listmode="table"] .listtable .col-desc {
+        min-width: auto;
+    }
+    body { font-size: 13px; }
+    .listtable td,
+    .listtable th { font-size: 12px; }
+    .desc-text { font-size: 12px; }
 }
 
 /* Then hide PRICE */
@@ -203,11 +247,17 @@
     .feed[data-listmode="table"] .listtable tr>*:nth-child(4) {
         display: none;
     }
+    body { font-size: 12px; }
+    .listtable td,
+    .listtable th { font-size: 11.5px; }
+    .desc-text { font-size: 11.5px; }
 }
 
-/* Optional: relax description width once numbers disappear */
-@media (max-width: 520px) {
-    .feed[data-listmode="table"] .listtable .col-desc {
-        min-width: auto;
-    }
+
+/* Ultra narrow (fallback safety) */
+@media (max-width: 360px) {
+    body { font-size: 11.5px; }
+    .listtable td,
+    .listtable th { font-size: 11px; }
+    .desc-text { font-size: 11px; }
 }

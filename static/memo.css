@@ -1086,3 +1086,9 @@ input[type="number"] {
 @media (min-width: 981px) {
     .floating .fab { opacity: .9; }
 }
+
+/* ===== Shared attachment / file link styling ===== */
+.attachments, .filelist { display:flex; flex-direction:column; gap:4px; }
+.attachments a, .filelist a { color:#93c5fd; text-decoration:none; font-size:12px; line-height:1.25; word-break:break-word; }
+.attachments a:hover, .filelist a:hover { text-decoration:underline; }
+.attachments .more-indicator, .filelist .more-indicator { font-size:11px; color:var(--muted); }
