@@ -40,8 +40,11 @@ LLM_PROVIDER = 'gemini'  # 'openai' | 'gemini'
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 LLM_MODEL = os.environ.get('LLM_MODEL')  # if unset we'll choose a reasonable default per provider
-LLM_SYSTEM_PROMPT = os.environ.get('LLM_SYSTEM_PROMPT') or (
+LLM_SYSTEM_PROMPT = (
     "You are an efficient assistant embedded in a personal memo system."
+    " You will be provide with a list of their memos."
+    " Sometimes the user may not provide the full context of their questions, make an educated guess."
+    " Sometimes what the user ask may not match exactly what is in the memos, try to find the closest match."
     " Provide concise, helpful answers. If user asks to reference memos, you can reason over the conversation context only;"
     " you cannot actually read files unless explicitly given their content."
 )
@@ -330,7 +333,7 @@ def _generate_llm_reply(history_messages, latest_user_text: str) -> str:
             if not GEMINI_API_KEY:
                 return "(Missing GEMINI_API_KEY)"
             genai.configure(api_key=GEMINI_API_KEY)
-            model_name = LLM_MODEL or 'gemini-2.5-flash-lite-preview-06-17'
+            model_name = LLM_MODEL or 'gemini-2.5-flash-lite'
             # Compose a single prompt with light formatting (Gemini Python SDK chat style)
             convo_lines = []
             if LLM_SYSTEM_PROMPT:
@@ -414,10 +417,10 @@ def chat_send():
                     tax = e.get('tax')
                     adj = e.get('adjustment')
                     total = e.get('total')
-                    lines.append(f"ID={e.get('id')} | date={pd} | category={category} | price={price} tax={tax} adj={adj} total={total} | tags={tags} | desc={desc}")
+                    lines.append(f"ID={e.get('id')} | date={pd} | category={category} | price={price} tax={tax} adj={adj} total={total} | tags={tags} | desc='{desc}'")
                 else:
                     ts = e.get('ts')
-                    lines.append(f"ID={e.get('id')} | date = {e.get('createdAt')} | ts={ts} | category={category} | tags={tags} | desc={desc}")
+                    lines.append(f"ID={e.get('id')} | date = {e.get('createdAt')} | ts={ts} | category={category} | tags={tags} | desc='{desc}'")
             entries_summary = '\n'.join(lines)
         except Exception as e:
             entries_summary = f"(Could not build entries summary: {e})"

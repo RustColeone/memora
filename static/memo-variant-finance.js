@@ -278,7 +278,7 @@
     const imgs = imgsOnly.map((src, i) => `<img data-eid="${e.id}" data-idx="${i}" src="${src}" alt="" class="thumb" style="width:60px;height:60px;margin:2px;cursor:pointer;">`).join('');
     els.detailContent.innerHTML = `
       <div class="muted">Date: ${e.purchaseDate || (e.ts ? (new Date(e.ts)).toISOString().slice(0, 10) : '')} • ${e.category}</div>
-      <h3>${e.description ? e.description.replace(/</g, '&lt;') : '(No description)'}</h3>
+      <h3>${e.description ? e.description.replace(/</g, '&lt;').replace(/\n/g, '<br>') : '(No description)'}</h3>
       <div class="tagsline">${(e.tags || []).map(t => `<span class="tagpill">#${t}</span>`).join('')}</div>
       <table class="feed-table" style="margin:14px 0 10px 0;max-width:480px;">
           <tr><th>Price</th><th>Tax</th><th>Adjustment</th><th>Total</th></tr>
