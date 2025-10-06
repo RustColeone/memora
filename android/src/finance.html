@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1" name="viewport" />
+    <title>Finance — Purchases &amp; Receipts</title>
+    <meta name="memo-variant" content="finance" />
+    <!-- Try to load Capacitor bootstrap; if it fails, we're likely not in Capacitor mode -->
+    <script>
+        (function(){
+            var s = document.createElement('script');
+            s.src = 'static/memo-capacitor.js';
+            s.defer = true;
+            s.onload = function(){
+                window.CAP_BOOT = !!window.__CAP_MODE__;
+                if (window.CAP_BOOT) {
+                  var doHide = function(){
+                    var btn = document.getElementById('chooseDirBtn'); if (btn) btn.hidden = true;
+                    var hint = document.querySelector('.toolbar .hint'); if (hint) hint.hidden = true;
+                  };
+                  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', doHide); else doHide();
+                }
+            };
+            s.onerror = function(){ window.CAP_BOOT = false; };
+            document.head.appendChild(s);
+        })();
+    </script>
+    <script>
+        (function(){
+            var hasServer = location.protocol === 'http:' || location.protocol === 'https:';
+            var STATIC_BASE = hasServer ? '/static/' : 'static/';
+            ['memo.css','memo-finance.css'].forEach(function(f){
+                var l = document.createElement('link');
+                l.rel = 'stylesheet';
+                l.href = STATIC_BASE + f;
+                document.head.appendChild(l);
+            });
+        })();
+    </script>
+</head>
+
+<body>
+    <header>
+        <div class="bar">
+            <div class="brand">💸 Finance</div>
+            <div class="spacer"></div>
+            <select id="categoryFilter">
+                <option value="__ALL__">All categories</option>
+            </select>
+            <input id="searchBox" placeholder="Search description / tags…" type="text" />
+            <button id="filtersBtn" title="More filters">Filters</button>
+            <button id="calendarBtn" title="Open calendar">Calendar</button>
+            <button id="chooseDirBtn" title="Choose a folder to save images &amp; finance.json"
+                data-hide-when-server>Choose Folder</button>
+            <button id="chatBtn" title="Ask questions">Chat</button>
+        </div>
+    </header>
+    <!-- Lightbox -->
+    <div aria-hidden="true" class="lightbox" id="lightbox">
+        <button class="lbbtn lbclose" id="lbClose">Close ✕</button>
+        <button class="lbbtn lbprev" id="lbPrev">◀</button>
+        <!-- prevent native drag: -->
+        <img alt="preview" draggable="false" id="lbImg" />
+        <button class="lbbtn lbnext" id="lbNext">▶</button>
+        <div class="lbcounter" id="lbCounter">1/1</div>
+    </div>
+    <main>
+        <section class="toolbar">
+            <div class="hint" data-hide-when-server>Optional file saving is <span id="fsStatus">disabled</span>. <span
+                    class="muted">Without
+                    it, everything stays in your browser.</span></div>
+        </section>
+        <section class="feed" id="feed" data-listmode="table"></section>
+    </main>
+    <div class="floating">
+        <button class="fab" id="fab" title="New entry">+</button>
+    </div>
+    <!-- Chat Dialog -->
+    <dialog id="chatDlg">
+        <div class="modal chatmodal">
+            <header style="display:flex;align-items:center;gap:10px;justify-content:space-between">
+                <strong>Chat</strong>
+                <div class="inline" style="gap:8px">
+                    <button class="ghost" id="chatClearBtn" title="Clear history">Clear</button>
+                    <button class="ghost" id="chatCloseBtn" title="Close">Close</button>
+                </div>
+            </header>
+            <div class="content">
+                <div id="chatHistory" class="chat-history"></div>
+                <div class="chat-input">
+                    <input id="chatInput" type="text" placeholder="Type your question..." />
+                    <button id="chatSendBtn" class="primary">Send</button>
+                </div>
+            </div>
+        </div>
+    </dialog>
+    <!-- Create/Edit Modal -->
+    <dialog id="entryDlg">
+        <div class="modal">
+            <header><strong id="dlgTitle">New Entry</strong></header>
+            <div class="content">
+                <div class="row">
+                    <label for="desc">Description</label>
+                    <textarea id="desc" placeholder="What did you purchase?"></textarea>
+                </div>
+                <div class="rowgrid">
+                    <div class="row">
+                        <label for="categoryInput">Category</label>
+                        <div class="inline">
+                            <select id="categoryInput"></select>
+                            <input id="newCategory" placeholder="or type new…" type="text" />
+                            <button id="addCategoryBtn">Add</button>
+                        </div>
+                        <div class="muted">Tip: Type a new category and press Enter to add.</div>
+                    </div>
+                </div>
+                <div class="rowgrid">
+                    <div class="row">
+                        <label for="entryDate">Purchase Date</label>
+                        <input id="entryDate" type="date" />
+                    </div>
+                    <div class="row">
+                        <label for="price">Price</label>
+                        <input id="price" type="number" step="0.01" min="0" />
+                    </div>
+                    <div class="row">
+                        <label for="tax">Tax</label>
+                        <input id="tax" type="text" placeholder="e.g. 10%" />
+                    </div>
+                    <div class="row">
+                        <label for="adjustment">Adjustment</label>
+                        <input id="adjustment" type="number" step="0.01" min="0" placeholder="Shipping, tips, etc." />
+                    </div>
+                    <div class="row">
+                        <label>Total</label>
+                        <input id="total" type="number" step="0.01" readonly />
+                    </div>
+                </div>
+                <div class="row">
+                    <label>Tags</label>
+                    <div class="suggest">
+                        <input autocomplete="off" id="tagInput" placeholder="Type to search tags; Enter/click to add"
+                            type="text" />
+                        <div class="dropdown hidden" id="tagDropdown"></div>
+                    </div>
+                    <div class="chips" id="tagChips"></div>
+                </div>
+                <div class="row">
+                    <!-- Drop zone users can click / paste into / drop onto -->
+                    <div id="dropzone" class="dropzone">Paste, drop, or tap to add images / PDFs</div>
+                    <input accept="image/*,application/pdf,.pdf" id="images" multiple type="file" capture="environment" hidden/>
+                    <div class="muted">Drag thumbnails below to reorder.</div>
+                </div>
+                <div class="row">
+                    <label>Images order</label>
+                    <div class="draggrid" id="dragGrid"></div>
+                </div>
+            </div>
+            <div class="actions">
+                <span class="spacer"></span>
+                <button class="ghost" id="cancelBtn">Cancel</button>
+                <button class="primary" id="saveBtn">Post</button>
+            </div>
+        </div>
+    </dialog>
+    <!-- Detail Modal -->
+    <dialog id="detailDlg">
+        <div class="modal">
+            <header><strong>Entry</strong></header>
+            <div class="content" id="detailContent"></div>
+            <div class="actions">
+                <button class="danger" id="deleteBtn">Delete</button>
+                <span class="spacer"></span>
+                <button id="editBtn">Edit</button>
+                <button class="ghost" id="closeDetailBtn">Close</button>
+            </div>
+        </div>
+    </dialog>
+    <!-- Filters / Tag Manager -->
+    <dialog id="filtersDlg">
+        <div class="modal filters">
+            <header><strong>Filters</strong></header>
+            <div class="content">
+                <div class="row">
+                    <label>Date range</label>
+                    <div class="inline">
+                        <input id="dateFrom" type="date" />
+                        <span class="muted">to</span>
+                        <input id="dateTo" type="date" />
+                        <button class="pill" id="quickThisMonth">This month</button>
+                        <button class="pill" id="quickClearDates">Clear</button>
+                    </div>
+                </div>
+                <div class="row">
+                    <label>Categories</label>
+                    <div class="scroll" id="filterCats"></div>
+                </div>
+                <div class="row">
+                    <label>Tags</label>
+                    <div class="inline">
+                        <input id="filterTagSearch" placeholder="Search tags…" type="text" />
+                        <span class="spacer"></span>
+                        <button class="linkbtn" id="manageTagsLink">Manage tags</button>
+                    </div>
+                    <div class="scroll" id="filterTags"></div>
+                </div>
+                <!-- Tag Manager UI -->
+                <div class="hidden" id="tagManager">
+                    <hr style="border-color:#1f2937;opacity:.6" />
+                    <div class="inline" style="justify-content:space-between">
+                        <h3 style="margin:0">Manage tags</h3>
+                        <button class="ghost" id="tagMgrClose">Close</button>
+                    </div>
+                    <div class="tagmgr-wrap">
+                        <div class="tagmgr-list" id="tagMgrList"></div>
+                    </div>
+                    <div class="inline" style="justify-content:flex-end;margin-top:8px">
+                        <button class="ghost" disabled="" id="tagMgrUndo">Undo</button>
+                    </div>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="ghost" id="filtersReset">Reset</button>
+                <span class="spacer"></span>
+                <button id="filtersCancel">Cancel</button>
+                <button class="primary" id="filtersApply">Apply</button>
+            </div>
+        </div>
+    </dialog>
+    <!-- Calendar Dialog -->
+    <dialog id="calendarDlg">
+        <div class="modal calwrap">
+            <header><strong>Calendar</strong></header>
+            <div class="content">
+                <div class="calbar">
+                    <div class="left">
+                        <button id="calPrev">◀</button>
+                        <div class="muted" id="calHeading"></div>
+                        <button id="calNext">▶</button>
+                    </div>
+                    <div class="right">
+                        <select id="calView">
+                            <option value="year">Year</option>
+                            <option selected="" value="month">Month</option>
+                            <option value="day">Day</option>
+                        </select>
+                        <input id="calPickDay" type="date" />
+                        <button id="calUp">↑ Back</button>
+                    </div>
+                </div>
+                <div class="callegend" id="calLegend"></div>
+                <div class="calgrid month" id="calGrid"></div>
+                <div class="calactions">
+                    <button class="ghost" id="calCancel">Close</button>
+                    <button class="ghost" disabled="" id="calDrill">Drill In</button>
+                    <button class="ghost" disabled="" id="calClearSel">Clear Selection</button>
+                    <button class="primary" id="calApply">Apply to filters</button>
+                </div>
+            </div>
+        </div>
+    </dialog>
+
+    <script>
+        (function(){
+            var hasServer = location.protocol === 'http:' || location.protocol === 'https:';
+            var STATIC_BASE = hasServer ? '/static/' : 'static/';
+            var files = [
+                'memo-core.js',
+                'memo-variant-finance.js',
+                'memo-filter.js',
+                'memo-lightbox.js'
+            ];
+            function loadSeq(i){
+                if(i >= files.length) return;
+                var s = document.createElement('script');
+                s.src = STATIC_BASE + files[i];
+                s.onload = function(){ loadSeq(i+1); };
+                document.body.appendChild(s);
+            }
+            if (!window.CAP_BOOT) loadSeq(0);
+        })();
+    </script>
+</body>
+
+</html>

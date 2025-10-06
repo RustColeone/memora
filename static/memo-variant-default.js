@@ -2,6 +2,13 @@
 (function(){
   const { els } = window.MemoCore.getState();
 
+  // In Capacitor mode, hide manual folder selection and browser-only saving hint
+  if (typeof window !== 'undefined' && window.CAP_BOOT) {
+    try {
+      document.querySelectorAll('#chooseDirBtn,[data-hide-when-server]').forEach(el => { el.hidden = true; });
+    } catch (e) { /* noop */ }
+  }
+
   function normalizeServerMemo(m) {
     return {
       id: m.id,

@@ -1,0 +1,27 @@
+{
+  "name": "memo-system-app",
+  "version": "1.0.0",
+  "description": "Memo system app aims to be your personalized memo system that leverages AI assistance for help you get organized.",
+  "type": "module",
+  "keywords": [
+    "capacitor",
+    "mobile"
+  ],
+  "scripts": {
+    "start": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@capacitor/camera": "latest",
+    "@capacitor/core": "latest",
+    "@capacitor/splash-screen": "latest"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "latest",
+    "vite": "^5.4.2",
+    "vite-plugin-static-copy": "^3.1.3"
+  },
+  "author": "",
+  "license": "ISC"
+}

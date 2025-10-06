@@ -119,7 +119,7 @@ const DB_KEY = (MEMO_VARIANT === 'finance') ? 'memo_finance_db_v1' : 'memo_db_v1
 const SETTINGS_KEY = 'memo_settings_v1';
 const CHAT_KEY = (MEMO_VARIANT === 'finance') ? 'chat_finance_v1' : 'chat_default_v1';
 
-let MODE = 'detecting'; // 'server' or 'local'
+let MODE = 'detecting'; // 'server' | 'local' | 'capacitor'
 let db = ({ entries: [] });
 let settings = ({ categories: ['Uncategorized'], tags: [], tagCounts: {}, fsEnabled: false, memoDirHandle: undefined });
 
@@ -143,6 +143,11 @@ async function detectMode() {
       return MODE;
     }
   } catch (e) { /* ignore */ }
+  // If variant bootstrap put us in Capacitor native, prefer that over local
+  if (typeof window !== 'undefined' && (window.CAP_BOOT || window.__CAP_MODE__)) {
+    MODE = 'capacitor';
+    return MODE;
+  }
   MODE = 'local';
   return MODE;
 }
@@ -444,6 +449,100 @@ if (els.chooseDirBtn) {
     } catch (e) { console.warn(e); }
   });
 }
+
+// =======================
+// Capacitor Filesystem support (when in native app)
+// =======================
+const CapFS = (function(){
+  let Filesystem = null;
+  let Directory = null;
+  function ready(){
+    try {
+      if (!window.Capacitor) return false;
+      // Capacitor v5 style import surface
+      Filesystem = window.Capacitor.Plugins?.Filesystem || window.Capacitor?.Filesystem || null;
+      Directory = window.Capacitor?.Filesystem?.Directory || window.Capacitor?.Plugins?.Filesystem?.Directory || { Data: 'DATA' };
+      return !!Filesystem && typeof Filesystem.readFile === 'function';
+    } catch { return false; }
+  }
+  async function ensureDirs(folder){
+    try {
+      await Filesystem.mkdir({ path: folder, directory: Directory.Data, recursive: true });
+    } catch (e) { /* exists */ }
+  }
+  function dataFilePath(){ return variantDataFileName(); }
+  function chatFilePath(){ return chatDataFileName(); }
+  const HASH_PATH = HASHBOOK_FILE;
+  async function readJSON(path){
+    try {
+      const { data } = await Filesystem.readFile({ path, directory: Directory.Data, encoding: 'utf8' });
+      return JSON.parse(data || 'null');
+    } catch { return null; }
+  }
+  async function writeJSON(path, obj){
+    const txt = JSON.stringify(obj, null, 2);
+    await Filesystem.writeFile({ path, data: txt, directory: Directory.Data, encoding: 'utf8', recursive: true });
+  }
+  async function readEntries(){
+    const data = await readJSON(dataFilePath());
+    return data && data.entries ? data : { entries: [] };
+  }
+  async function writeEntries(data){ await writeJSON(dataFilePath(), data || { entries: [] }); }
+  async function readHash(){ return (await readJSON(HASH_PATH)) || {}; }
+  async function writeHash(obj){ await writeJSON(HASH_PATH, obj || {}); }
+  async function fileExists(path){
+    try { await Filesystem.stat({ path, directory: Directory.Data }); return true; } catch { return false; }
+  }
+  async function removeFile(path){
+    try { await Filesystem.deleteFile({ path, directory: Directory.Data }); } catch {}
+    // Attempt remove parent folder if empty is optional; skip for simplicity
+  }
+  async function writeBinary(path, data){
+    // data: Blob or Uint8Array
+    let base64;
+    if (data instanceof Blob) {
+      base64 = await blobToBase64(data);
+    } else if (data instanceof Uint8Array) {
+      base64 = btoa(String.fromCharCode(...data));
+    } else if (data && data.buffer) {
+      base64 = btoa(String.fromCharCode(...new Uint8Array(data.buffer)));
+    } else {
+      throw new Error('Unsupported data type for writeBinary');
+    }
+    await Filesystem.writeFile({ path, data: base64, directory: Directory.Data, encoding: 'base64', recursive: true });
+  }
+  async function blobToBase64(blob){
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => {
+        const res = r.result;
+        const b64 = String(res).split(',')[1] || '';
+        resolve(b64);
+      };
+      r.onerror = reject;
+      r.readAsDataURL(blob);
+    });
+  }
+  async function urlFor(path){
+    // In webview, we can load file through Filesystem.getUri (on Android) or use capacitor:// scheme
+    try {
+      if (typeof Filesystem.getUri === 'function') {
+        const { uri } = await Filesystem.getUri({ directory: Directory.Data, path });
+        return uri;
+      }
+    } catch {}
+    // Fallback: read as base64
+    try {
+      const { data } = await Filesystem.readFile({ path, directory: Directory.Data, encoding: 'base64' });
+      // Guess type by extension
+      const ext = (path.split('.').pop() || 'png').toLowerCase();
+      const mime = (/pdf$/.test(ext)) ? 'application/pdf' : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+      return `data:${mime};base64,${data}`;
+    } catch { return '';
+    }
+  }
+  return { ready, readEntries, writeEntries, readHash, writeHash, fileExists, removeFile, writeBinary, urlFor, Directory, readJSON, writeJSON };
+})();
 
 // =======================
 // Utils
@@ -762,6 +861,66 @@ async function onSaveEntry() {
       const i = db.entries.findIndex(e => e.id === entry.id);
       if (i >= 0) db.entries[i] = saved;
     }
+  } else if (MODE === 'capacitor' && CapFS.ready()) {
+    // Native app private storage
+    entry.images = [];
+    entry.attachments = [];
+    const filesToWrite = [];
+    const extraFilesToWrite = [];
+    const keptStoredPaths = [];
+    modalImages.forEach(mi => {
+      entry.images.push(mi.src);
+      if (mi.file) filesToWrite.push(mi); else if (mi.existing && mi.storedPath) keptStoredPaths.push(mi.storedPath);
+    });
+    modalFilesExtra.forEach(f => { if (f.file) extraFilesToWrite.push(f); else if (f.existing && f.storedPath) keptStoredPaths.push(f.storedPath); });
+
+    const dateFolderName = todayFolder(entry.ts);
+    const base = slug(description || 'memo');
+    const book = await CapFS.readHash();
+
+    const capHandleOne = async (fObj, idx, prefix) => {
+      const f = fObj.file;
+      const ext = (f.name.split('.').pop() || 'dat').toLowerCase();
+      const hash = await computeSHA256(f);
+      let usedStoredPath = null;
+      const existing = (hash && book[hash] && book[hash].storedPath) ? book[hash].storedPath : null;
+      if (existing && await CapFS.fileExists(existing)) {
+        usedStoredPath = existing;
+        book[hash].count = Math.max(1, parseInt(book[hash].count || 1, 10) + 1);
+      } else {
+        const newName = `${dateFolderName}_${base || 'post'}_${prefix}${String(idx + 1).padStart(2, '0')}.${ext}`;
+        const relPath = `${dateFolderName}/${newName}`;
+        await CapFS.writeBinary(relPath, await f.arrayBuffer());
+        usedStoredPath = relPath;
+        if (hash) book[hash] = { storedPath: usedStoredPath, count: 1 };
+      }
+      keptStoredPaths.push(usedStoredPath);
+      if (!f.type?.startsWith('image/')) {
+        entry.attachments.push({ name: f.name, url: usedStoredPath, storedPath: usedStoredPath, type: f.type || 'application/octet-stream' });
+      }
+    };
+    for (let i = 0; i < filesToWrite.length; i++) await capHandleOne(filesToWrite[i], i, 'img');
+    for (let i = 0; i < extraFilesToWrite.length; i++) await capHandleOne(extraFilesToWrite[i], i, 'file');
+    // include existing non-image attachments that were not removed
+    modalFilesExtra.filter(f => f.existing && !f.file).forEach(f => {
+      entry.attachments.push({ name: f.name, url: f.url, storedPath: f.storedPath, type: f.type || 'application/octet-stream' });
+    });
+    // Persist hashbook
+    await CapFS.writeHash(book);
+    // Sync JSON record with exactly kept stored paths
+    const existingEntry = db.entries.find(e => e.id === entry.id);
+    const originalPaths = Array.isArray(existingEntry?._storedPaths) ? existingEntry._storedPaths : [];
+    const removed = originalPaths.filter(sp => sp && !keptStoredPaths.includes(sp));
+    for (const sp of removed) { try { await capDecrementAndMaybeDelete(sp); } catch (e) { console.warn('Cap remove failed', sp, e); } }
+    await capReplaceMemoRecordImages(entry, keptStoredPaths, entry.attachments || []);
+    entry._storedPaths = keptStoredPaths.slice();
+
+    if (isNew) db.entries.push(entry);
+    else {
+      const i = db.entries.findIndex(e => e.id === entry.id);
+      if (i >= 0) db.entries[i] = entry;
+    }
+    recomputeTags(); saveAll();
   } else {
     entry.images = [];
     entry.attachments = [];
@@ -855,6 +1014,13 @@ async function onDeleteEntry() {
 
   if (MODE === 'server') {
     await ServerAPI.remove(id);
+  } else if (MODE === 'capacitor' && CapFS.ready()) {
+    const entry = db.entries.find(e => e.id === id);
+    if (entry && Array.isArray(entry._storedPaths)) {
+      for (const sp of entry._storedPaths) { try { await capDecrementAndMaybeDelete(sp); } catch (e) { console.warn('Cap delete failed', sp, e); } }
+      // Remove from JSON
+      await capRemoveMemoRecord(id);
+    }
   } else {
     // Local mode: cleanup files via hashbook
     const entry = db.entries.find(e => e.id === id);
@@ -1032,6 +1198,60 @@ async function coreInit() {
       renderFeed();
     }
   } else {
+    // Capacitor: load from app-private storage
+    if (MODE === 'capacitor' && CapFS.ready()) {
+      // Hide browser-only UI
+      try {
+        if (els.chooseDirBtn) els.chooseDirBtn.hidden = true;
+        const hintEl = document.getElementById('fsHint') || document.querySelector('.toolbar .hint');
+        if (hintEl) hintEl.hidden = true;
+      } catch {}
+      try {
+        const data = await CapFS.readEntries();
+        revokeAllObjectURLs();
+        const entries = [];
+        for (const rec of (data.entries || [])) {
+          const imgs = [];
+          const storedPaths = [];
+          const fsImgs = Array.isArray(rec.images) ? rec.images : [];
+          for (const im of fsImgs) {
+            const sp = (im && typeof im === 'object') ? im.storedPath : (typeof im === 'string' ? im : null);
+            if (sp) {
+              try { const u = await CapFS.urlFor(sp); if (u) { imgs.push(u); storedPaths.push(sp); } } catch {}
+            }
+          }
+          const base = {
+            id: rec.id,
+            description: rec.description || '',
+            category: rec.category || 'Uncategorized',
+            tags: rec.tags || [],
+            ts: rec.ts || Date.now(),
+            images: imgs,
+            _storedPaths: storedPaths,
+          };
+          if (MEMO_VARIANT === 'finance') {
+            base.purchaseDate = rec.purchaseDate || (rec.ts ? new Date(rec.ts).toISOString().slice(0,10) : '');
+            base.price = rec.price || 0; base.tax = rec.tax || ''; base.adjustment = rec.adjustment || 0; base.total = rec.total || 0;
+          }
+          // Attachments (non-images)
+          if (Array.isArray(rec.attachments)) {
+            base.attachments = rec.attachments.map(a => ({ name: a.name, url: a.storedPath || a.url, storedPath: a.storedPath || a.url, type: a.type || 'application/octet-stream' }));
+          }
+          entries.push(base);
+        }
+        db.entries = entries;
+        const cats = Array.from(new Set(entries.map(e => e.category))).sort();
+        settings.categories = cats.length ? cats : ['Uncategorized'];
+        settings.fsEnabled = true; // native always has private storage
+        if (els.fsStatus) els.fsStatus.textContent = 'enabled';
+        recomputeTags(); saveAll();
+        refreshCategoryControls();
+        renderFeed();
+        // Initialize Chat in Cap mode
+        initChatUI();
+        return;
+      } catch (e) { console.warn('Capacitor load failed, falling back to local:', e); }
+    }
     try {
       const persisted = await idbGet(IDB_KEY_ROOT);
       if (persisted && await ensurePermission(persisted, 'read')) {
@@ -1103,6 +1323,67 @@ async function replaceMemoRecordImages(rootDir, entry, storedPaths, attachments)
     rec.attachments = attachments.map(a => ({ name: a.name, storedPath: a.storedPath || a.url, type: a.type }));
   }
   const w = await fh.createWritable(); await w.write(JSON.stringify(data, null, 2)); await w.close();
+}
+
+// ===== Capacitor equivalents for JSON updates and cleanup =====
+async function capUpdateMemoJson(entry, imgInfo) {
+  if (!(MODE === 'capacitor' && CapFS.ready())) return;
+  let data = await CapFS.readEntries();
+  let rec = (data.entries || []).find(x => x.id === entry.id);
+  if (!rec) {
+    rec = { id: entry.id, description: entry.description, category: entry.category, tags: entry.tags, ts: entry.ts, images: [] };
+    if (MEMO_VARIANT === 'finance') {
+      rec.purchaseDate = entry.purchaseDate; rec.price = entry.price; rec.tax = entry.tax; rec.adjustment = entry.adjustment; rec.total = entry.total;
+    }
+    data.entries.push(rec);
+  } else {
+    rec.description = entry.description; rec.category = entry.category; rec.tags = entry.tags; rec.ts = entry.ts;
+    if (MEMO_VARIANT === 'finance') {
+      rec.purchaseDate = entry.purchaseDate; rec.price = entry.price; rec.tax = entry.tax; rec.adjustment = entry.adjustment; rec.total = entry.total;
+    }
+  }
+  if (imgInfo?.storedPath) {
+    const sp = imgInfo.storedPath;
+    const exists = (rec.images || []).some(im => (im && typeof im === 'object' ? im.storedPath : im) === sp);
+    if (!exists) { rec.images = rec.images || []; rec.images.push({ storedPath: sp, originalName: imgInfo.originalName }); }
+  }
+  await CapFS.writeEntries(data);
+}
+
+async function capReplaceMemoRecordImages(entry, storedPaths, attachments) {
+  if (!(MODE === 'capacitor' && CapFS.ready())) return;
+  let data = await CapFS.readEntries();
+  let rec = (data.entries || []).find(x => x.id === entry.id);
+  if (!rec) {
+    rec = { id: entry.id, description: entry.description, category: entry.category, tags: entry.tags, ts: entry.ts, images: [] };
+    if (MEMO_VARIANT === 'finance') { rec.purchaseDate = entry.purchaseDate; rec.price = entry.price; rec.tax = entry.tax; rec.adjustment = entry.adjustment; rec.total = entry.total; }
+    data.entries.push(rec);
+  } else {
+    rec.description = entry.description; rec.category = entry.category; rec.tags = entry.tags; rec.ts = entry.ts;
+    if (MEMO_VARIANT === 'finance') { rec.purchaseDate = entry.purchaseDate; rec.price = entry.price; rec.tax = entry.tax; rec.adjustment = entry.adjustment; rec.total = entry.total; }
+  }
+  rec.images = (storedPaths || []).filter(Boolean).map(sp => ({ storedPath: sp }));
+  if (attachments && attachments.length) { rec.attachments = attachments.map(a => ({ name: a.name, storedPath: a.storedPath || a.url, type: a.type })); }
+  await CapFS.writeEntries(data);
+}
+
+async function capRemoveMemoRecord(id) {
+  if (!(MODE === 'capacitor' && CapFS.ready())) return;
+  let data = await CapFS.readEntries();
+  data.entries = (data.entries || []).filter(x => x.id !== id);
+  await CapFS.writeEntries(data);
+}
+
+async function capDecrementAndMaybeDelete(storedPath) {
+  if (!(MODE === 'capacitor' && CapFS.ready())) return;
+  const book = await CapFS.readHash();
+  const h = findHashByStoredPath(book, storedPath);
+  if (!h) return;
+  const rec = book[h];
+  const cnt = Math.max(0, parseInt(rec.count || 0, 10) - 1);
+  if (cnt === 0) { try { await CapFS.removeFile(storedPath); } catch {} delete book[h]; }
+  else { rec.count = cnt; book[h] = rec; }
+  await CapFS.writeHash(book);
 }
 // Render list of non-image attachments below drag grid
 function renderExtraAttachmentsList() {
@@ -1308,6 +1589,13 @@ function initChatUI() {
 // Local Chat (no server): FS if available, else localStorage
 const LocalChat = {
   async list() {
+    if (MODE === 'capacitor' && CapFS.ready()) {
+      const raw = await (async () => {
+        try { const data = await CapFS.readEntries(); /* ensure file space exists */ } catch {}
+        try { const j = await CapFS.readJSON ? CapFS.readJSON(chatDataFileName()) : null; return j; } catch { return null; }
+      })();
+      return Array.isArray(raw) ? raw : [];
+    }
     if (settings.fsEnabled && settings.memoDirHandle) {
       const raw = await readTextFileIfExists(settings.memoDirHandle, chatDataFileName());
       if (!raw) {
@@ -1329,6 +1617,16 @@ const LocalChat = {
     const bot = { id: uid(), role: 'assistant', content: 'FEATURE NOT SUPPORTED YET', ts: new Date().toISOString() };
     const msgs = await this.list();
     msgs.push(user, bot);
+    if (MODE === 'capacitor' && CapFS.ready()) {
+      // Store chat as JSON array
+      try {
+        await (async () => {
+          const txt = JSON.stringify(msgs, null, 2);
+          await (window.Capacitor.Plugins?.Filesystem || window.Capacitor.Filesystem).writeFile({ path: chatDataFileName(), data: txt, directory: CapFS.Directory.Data, encoding: 'utf8', recursive: true });
+        })();
+      } catch {}
+      return { messages: [user, bot] };
+    }
     if (settings.fsEnabled && settings.memoDirHandle) {
       const canWrite = await ensureWritePermission(settings.memoDirHandle);
       if (canWrite) {
@@ -1344,6 +1642,12 @@ const LocalChat = {
     return { messages: [user, bot] };
   },
   async clear() {
+    if (MODE === 'capacitor' && CapFS.ready()) {
+      try {
+        await (window.Capacitor.Plugins?.Filesystem || window.Capacitor.Filesystem).writeFile({ path: chatDataFileName(), data: JSON.stringify([], null, 2), directory: CapFS.Directory.Data, encoding: 'utf8', recursive: true });
+      } catch {}
+      return [];
+    }
     if (settings.fsEnabled && settings.memoDirHandle) {
       const canWrite = await ensureWritePermission(settings.memoDirHandle);
       if (canWrite) {

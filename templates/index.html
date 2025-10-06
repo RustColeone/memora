@@ -6,7 +6,27 @@
     <meta charset="utf-8" />
     <meta content="width=device-width, initial-scale=1" name="viewport" />
     <title>Memo — Personal Database &amp; Notes</title>
-
+    <!-- Try to load Capacitor bootstrap; if it fails, we're likely not in Capacitor mode -->
+    <script>
+        (function(){
+            var s = document.createElement('script');
+            s.src = 'static/memo-capacitor.js';
+            s.defer = true;
+            s.onload = function(){
+                // Set CAP_BOOT true only if the bootstrap detected native
+                window.CAP_BOOT = !!window.__CAP_MODE__;
+                if (window.CAP_BOOT) {
+                  var doHide = function(){
+                    var btn = document.getElementById('chooseDirBtn'); if (btn) btn.hidden = true;
+                    var hint = document.getElementById('fsHint'); if (hint) hint.hidden = true;
+                  };
+                  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', doHide); else doHide();
+                }
+            };
+            s.onerror = function(){ window.CAP_BOOT = false; };
+            document.head.appendChild(s);
+        })();
+    </script>
     <script>
         (function(){
             var hasServer = location.protocol === 'http:' || location.protocol === 'https:';
@@ -49,7 +69,7 @@
     </div>
     <main>
         <section class="toolbar">
-            <div class="hint" data-hide-when-server>Optional file saving is <span id="fsStatus">disabled</span>. <span
+            <div class="hint" id="fsHint" data-hide-when-server>Optional file saving is <span id="fsStatus">disabled</span>. <span
                     class="muted">Without
                     it, everything stays in your browser.</span></div>
         </section>
@@ -238,7 +258,7 @@
                 s.onload = function(){ loadSeq(i+1); };
                 document.body.appendChild(s);
             }
-            loadSeq(0);
+            if (!window.CAP_BOOT) loadSeq(0);
         })();
     </script>
 </body>
