@@ -55,6 +55,14 @@ app = Flask(__name__, static_folder='static', template_folder='templates')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB upload cap
 
+# Add CORS headers to all responses
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    return response
+
 # Ensure the data and upload folders exist
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -88,6 +96,17 @@ def _write_json(path, obj):
     with open(tmp, 'w', encoding='utf-8') as f:
         json.dump(obj, f, ensure_ascii=False, indent=2)
     os.replace(tmp, path)
+
+def iso_to_timestamp(iso_string):
+    """Convert ISO 8601 timestamp to milliseconds since epoch"""
+    try:
+        if not iso_string:
+            return 0
+        # Handle both 'Z' suffix and timezone-aware strings
+        dt = datetime.fromisoformat(iso_string.replace('Z', '+00:00'))
+        return int(dt.timestamp() * 1000)
+    except (ValueError, AttributeError):
+        return 0
 
 def _get_variant():
     """
@@ -449,6 +468,237 @@ def api_config():
     """Tell the frontend whether server mode is on."""
     return jsonify({"server": USE_SERVER_BACKEND})
 
+# --- Sync API ---
+@app.route('/api/sync/compare', methods=['POST'])
+def sync_compare():
+    """Compare client and server entries to determine what needs to be synced"""
+    if not USE_SERVER_BACKEND:
+        return jsonify({"needsUpload": [], "needsDownload": [], "needsDelete": []}), 400
+    
+    variant = _get_variant()
+    payload = request.get_json(force=True, silent=True) or {}
+    
+    client_summary = payload.get('entries', [])  # [{id, modifiedAt, hash}, ...]
+    client_deleted = payload.get('deleted', [])  # [id, ...]
+    
+    # Get server entries
+    server_entries = get_memos_for_variant(variant)
+    
+    # Create lookup maps
+    client_map = {e['id']: e for e in client_summary}
+    server_map = {e['id']: e for e in server_entries if not e.get('deletedAt')}
+    
+    needs_upload = []  # Entries client should upload to server
+    needs_download = []  # Entries client should download from server
+    needs_delete = []  # Entries to delete from server
+    
+    # Check each client entry
+    for client_id, client_entry in client_map.items():
+        if client_id in server_map:
+            server_entry = server_map[client_id]
+            
+            client_hash = client_entry.get('hash')
+            server_hash = hash_entry_server(server_entry)
+            
+            # Use 'updatedAt' field as the modification time (not 'ts' which is creation time)
+            server_modified = iso_to_timestamp(server_entry.get('updatedAt', server_entry.get('createdAt', '')))
+            client_modified = client_entry.get('modifiedAt', 0)
+            
+            # Debug logging
+            print(f"🔍 Comparing entry {client_id}:")
+            print(f"   Client modifiedAt: {client_modified}, Server updatedAt: {server_modified}")
+            print(f"   Client hash: {client_hash}, Server hash: {server_hash}")
+            
+            # Compare modification times
+            if client_hash == server_hash:
+                # Hashes match = content identical, no sync needed
+                print(f"   ✅ In sync (identical content)")
+            elif client_modified > server_modified:
+                # Client is newer, upload to server
+                print(f"   ⬆️ Client newer, needs upload")
+                needs_upload.append(client_id)
+            elif server_modified > client_modified:
+                # Server is newer, download from server
+                print(f"   ⬇️ Server newer, needs download")
+                needs_download.append(client_id)
+            else:
+                # Equal timestamps
+                print(f"   ✅ In sync")
+        else:
+            # Entry exists on client but not server - upload it
+            print(f"📤 Entry {client_id} not on server, needs upload")
+            needs_upload.append(client_id)
+    
+    # Check each server entry
+    for server_id, server_entry in server_map.items():
+        if server_id not in client_map:
+            # Entry exists on server but not client - download it
+            needs_download.append(server_id)
+    
+    # Check deletions
+    for deleted_id in client_deleted:
+        if deleted_id in server_map:
+            # Client deleted this entry, delete from server
+            needs_delete.append(deleted_id)
+    
+    return jsonify({
+        'needsUpload': needs_upload,
+        'needsDownload': needs_download,
+        'needsDelete': needs_delete
+    })
+
+def hash_entry_server(entry):
+    """Create a simple hash of an entry for comparison (matches frontend logic)"""
+    import json
+    relevant = {
+        'attachments': ','.join([a.get('name', '') for a in entry.get('attachments', [])]),
+        'category': entry.get('category', ''),
+        'description': entry.get('description', ''),
+        'images': len(entry.get('images', []))
+    }
+    
+    # Use separators to match JavaScript JSON.stringify (no spaces)
+    str_repr = json.dumps(relevant, sort_keys=True, separators=(',', ':'))
+    print(f"   Server hashing: {relevant}")
+    print(f"   Server stringified: {str_repr}")
+    
+    # Simple hash function (matches frontend)
+    hash_val = 0
+    for char in str_repr:
+        hash_val = ((hash_val << 5) - hash_val) + ord(char)
+        hash_val = hash_val & 0xFFFFFFFF  # Convert to 32bit integer
+    
+    # Convert to signed 32-bit
+    if hash_val > 0x7FFFFFFF:
+        hash_val -= 0x100000000
+    
+    return str(hash_val)
+
+@app.route('/api/sync', methods=['GET'])
+def sync_get():
+    """Get changes since last sync time (pull phase)"""
+    if not USE_SERVER_BACKEND:
+        return jsonify({"entries": [], "deleted": [], "serverTime": 0}), 400
+    
+    variant = _get_variant()
+    since = int(request.args.get('since', 0))
+    
+    memos = get_memos_for_variant(variant)
+    
+    # Filter entries modified after 'since' timestamp
+    modified = []
+    for m in memos:
+        updated_ts = iso_to_timestamp(m.get('updatedAt', ''))
+        created_ts = iso_to_timestamp(m.get('createdAt', ''))
+        # Include if updated after 'since' OR created after 'since'
+        if updated_ts > since or created_ts > since:
+            modified.append(m)
+    
+    # Get IDs of entries that were deleted after 'since'
+    deleted_ids = []
+    for m in memos:
+        if m.get('deletedAt'):
+            deleted_ts = iso_to_timestamp(m['deletedAt'])
+            if deleted_ts > since:
+                deleted_ids.append(m['id'])
+    
+    # Include hashbook for image deduplication
+    hashbook = get_hashbook()
+    
+    return jsonify({
+        'entries': modified,
+        'deleted': deleted_ids,
+        'hashbook': hashbook,
+        'serverTime': int(datetime.utcnow().timestamp() * 1000)
+    })
+
+@app.route('/api/sync', methods=['POST'])
+def sync_push():
+    """Receive client changes and resolve conflicts (push phase)"""
+    if not USE_SERVER_BACKEND:
+        return jsonify({"success": False, "message": "Server backend is disabled."}), 400
+    
+    variant = _get_variant()
+    payload = request.get_json(force=True, silent=True) or {}
+    
+    client_entries = payload.get('entries', [])
+    client_deleted = payload.get('deleted', [])
+    
+    memos = get_memos_for_variant(variant)
+    conflicts = []
+    
+    # Process updates/creates
+    for client_entry in client_entries:
+        entry_id = client_entry.get('id')
+        if not entry_id:
+            continue
+        
+        # Find existing server entry
+        server_entry = None
+        server_idx = -1
+        for idx, m in enumerate(memos):
+            if m.get('id') == entry_id:
+                server_entry = m
+                server_idx = idx
+                break
+        
+        if server_entry:
+            # Conflict detection: compare timestamps
+            client_updated = iso_to_timestamp(client_entry.get('updatedAt', ''))
+            server_updated = iso_to_timestamp(server_entry.get('updatedAt', ''))
+            
+            # Allow 5 second tolerance for clock skew
+            time_diff = abs(server_updated - client_updated)
+            
+            if time_diff > 5000:  # More than 5 seconds apart
+                if server_updated > client_updated:
+                    # Server is newer - conflict!
+                    conflicts.append({
+                        'id': entry_id,
+                        'clientVersion': client_entry,
+                        'serverVersion': server_entry,
+                        'resolution': 'server_wins'
+                    })
+                    continue  # Skip updating this entry
+            
+            # Merge client changes into server entry
+            for key, value in client_entry.items():
+                if key != 'id':  # Never change ID
+                    server_entry[key] = value
+            # Preserve client's updatedAt timestamp (don't regenerate)
+            if 'updatedAt' not in client_entry:
+                server_entry['updatedAt'] = datetime.utcnow().isoformat() + 'Z'
+            memos[server_idx] = server_entry
+        else:
+            # New entry from client - preserve client timestamps
+            if 'createdAt' not in client_entry:
+                client_entry['createdAt'] = datetime.utcnow().isoformat() + 'Z'
+            if 'updatedAt' not in client_entry:
+                client_entry['updatedAt'] = datetime.utcnow().isoformat() + 'Z'
+            memos.append(client_entry)
+    
+    # Process deletions
+    for del_id in client_deleted:
+        for entry in memos:
+            if entry.get('id') == del_id and not entry.get('deletedAt'):
+                entry['deletedAt'] = datetime.utcnow().isoformat() + 'Z'
+                entry['deletedBy'] = 'client'
+                entry['updatedAt'] = entry['deletedAt']
+                # Set permanent delete time (30 days)
+                from datetime import timedelta
+                entry['permanentDeleteAt'] = (
+                    datetime.utcnow() + timedelta(days=30)
+                ).isoformat() + 'Z'
+                break
+    
+    save_memos_for_variant(memos, variant)
+    
+    return jsonify({
+        'success': True,
+        'conflicts': conflicts,
+        'serverTime': int(datetime.utcnow().timestamp() * 1000)
+    })
+
 # --- Memo API ---
 @app.route('/api/memos', methods=['GET'])
 def get_all_memos():
@@ -524,10 +774,11 @@ def update_memo(memo_id):
 
 @app.route('/api/memos/<memo_id>', methods=['DELETE'])
 def delete_memo(memo_id):
-    """Deletes a memo and its associated files, and cleans up empty directories."""
+    """Deletes a memo. Supports soft delete (default) or permanent delete (?permanent=true)."""
     if not USE_SERVER_BACKEND:
         return jsonify({"message": "Server backend is disabled."}), 400
 
+    permanent = request.args.get('permanent', 'false').lower() == 'true'
     variant = _get_variant()
     memos = get_memos_for_variant(variant)
     memo_to_delete = None
@@ -540,39 +791,61 @@ def delete_memo(memo_id):
     if not memo_to_delete:
         return jsonify({"message": "Memo not found"}), 404
 
-    if 'images' in memo_to_delete and memo_to_delete['images']:
-        for image_url in memo_to_delete['images']:
-            # Best-effort: ensure not referenced by other variant before deleting
-            other_variant = 'default' if variant == 'finance' else 'finance'
-            other_memos = get_memos_for_variant(other_variant)
-            still_used_elsewhere = any(
-                image_url in (m.get('images') or [])
-                for m in other_memos
-            )
-            if not still_used_elsewhere:
-                delete_upload_url(image_url)
-            """
-            relative_path = image_url[1:] 
-            full_path = os.path.join(app.root_path, relative_path)
-            try:
-                if os.path.exists(full_path):
-                    os.remove(full_path)
-                    # Attempt to remove the directory and its parents if they become empty
-                    dir_path = os.path.dirname(full_path)
-                    try:
-                        os.removedirs(dir_path)
-                    except OSError as e:
-                        # This exception is raised if the directory is not empty
-                        # or if there's another issue (e.g., permissions).
-                        print(f"Directory {dir_path} is not empty or could not be removed: {e}")
-            except OSError as e:
-                print(f"Error deleting file {full_path}: {e}")
-            """
+    if permanent:
+        # Permanent delete: remove files and entry
+        if 'images' in memo_to_delete and memo_to_delete['images']:
+            for image_url in memo_to_delete['images']:
+                other_variant = 'default' if variant == 'finance' else 'finance'
+                other_memos = get_memos_for_variant(other_variant)
+                still_used_elsewhere = any(
+                    image_url in (m.get('images') or [])
+                    for m in other_memos
+                )
+                if not still_used_elsewhere:
+                    delete_upload_url(image_url)
+        
+        new_memos = [m for m in memos if str(m.get('id')) != str(memo_id)]
+        save_memos_for_variant(new_memos, variant)
+        return jsonify({"message": "Memo permanently deleted"}), 200
+    else:
+        # Soft delete: mark as deleted
+        from datetime import timedelta
+        memo_to_delete['deletedAt'] = datetime.utcnow().isoformat() + 'Z'
+        memo_to_delete['deletedBy'] = 'server'
+        memo_to_delete['permanentDeleteAt'] = (
+            datetime.utcnow() + timedelta(days=30)
+        ).isoformat() + 'Z'
+        memo_to_delete['updatedAt'] = datetime.utcnow().isoformat() + 'Z'
+        
+        save_memos_for_variant(memos, variant)
+        return jsonify(memo_to_delete), 200
 
-    # Default not do anything to file stored part
-    new_memos = [m for m in memos if str(m.get('id')) != str(memo_id)]
-    save_memos_for_variant(new_memos, variant)
-    return jsonify({"message": "Memo and associated files deleted"}), 200
+@app.route('/api/memos/<memo_id>/restore', methods=['POST'])
+def restore_memo(memo_id):
+    """Restores a soft-deleted memo from the recycle bin."""
+    if not USE_SERVER_BACKEND:
+        return jsonify({"message": "Server backend is disabled."}), 400
+    
+    variant = _get_variant()
+    memos = get_memos_for_variant(variant)
+    
+    memo = None
+    for m in memos:
+        if str(m.get('id')) == str(memo_id):
+            memo = m
+            break
+    
+    if not memo:
+        return jsonify({"message": "Memo not found"}), 404
+    
+    # Clear deletion markers
+    memo['deletedAt'] = None
+    memo['deletedBy'] = None
+    memo['permanentDeleteAt'] = None
+    memo['updatedAt'] = datetime.utcnow().isoformat() + 'Z'
+    
+    save_memos_for_variant(memos, variant)
+    return jsonify(memo), 200
 
 
 # --- Uploads ---
@@ -605,11 +878,21 @@ def upload_file():
     day_dir = os.path.join(app.config['UPLOAD_FOLDER'], date_folder)
     os.makedirs(day_dir, exist_ok=True)
 
-    time_prefix = datetime.now().strftime('%H%M_')
-
-    filename = time_prefix + secure_filename(file.filename)
+    # Check if filename already has HHMM_ prefix (from sync uploads)
+    # Pattern: starts with 4 digits followed by underscore
+    secured_name = secure_filename(file.filename)
+    import re
+    if re.match(r'^\d{4}_', secured_name):
+        # Already has time prefix, don't add another
+        filename = secured_name
+    else:
+        # Add time prefix for new uploads
+        time_prefix = datetime.now().strftime('%H%M_')
+        filename = time_prefix + secured_name
+    
     base, ext = os.path.splitext(filename)
     if not base:
+        time_prefix = datetime.now().strftime('%H%M_')
         base = f"{time_prefix}upload"
 
     # Avoid overwriting existing files in the same day folder

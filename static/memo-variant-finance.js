@@ -87,6 +87,11 @@
       category: m.category || 'Uncategorized',
       tags: m.tags || [],
       ts: m.ts || Date.now(),
+      createdAt: m.createdAt,
+      updatedAt: m.updatedAt,
+      deletedAt: m.deletedAt || null,
+      deletedBy: m.deletedBy || null,
+      permanentDeleteAt: m.permanentDeleteAt || null,
       images: m.images || [],
       attachments: m.attachments || [],
       purchaseDate: m.purchaseDate || (m.ts ? new Date(m.ts).toISOString().slice(0,10) : ''),
@@ -105,6 +110,7 @@
     const dt = activeFilters.dateTo ? (new Date(activeFilters.dateTo).getTime() + 24 * 3600 * 1000 - 1) : null;
 
     const filtered = db.entries
+      .filter(e => e.deletedAt === null || e.deletedAt === undefined) // ← Exclude deleted entries
       .filter(e => (cat === '__ALL__' ? true : e.category === cat))
       .filter(e => activeFilters.cats.size ? activeFilters.cats.has(e.category) : true)
       .filter(e => {
@@ -160,11 +166,33 @@
     for (const e of filtered) {
       const tr = document.createElement('tr');
       tr.setAttribute('data-id', e.id);
+      
+      // Add conflict indicator styling
+      if (e._hasConflict) {
+        tr.style.borderLeft = '4px solid #f59e0b';
+        tr.style.backgroundColor = 'rgba(245, 158, 11, 0.05)';
+      }
+      
       const dateCell = document.createElement('td'); dateCell.className = 'col-date';
       dateCell.textContent = e.purchaseDate || (e.ts ? (new Date(e.ts)).toISOString().slice(0,10) : ''); tr.appendChild(dateCell);
 
       const descCell = document.createElement('td'); descCell.className = 'col-desc';
       const descWrap = document.createElement('div'); descWrap.className = 'desc-cell';
+      
+      // Add conflict banner if needed
+      if (e._hasConflict) {
+        const conflictBanner = document.createElement('div');
+        conflictBanner.style.background = '#f59e0b';
+        conflictBanner.style.color = '#000';
+        conflictBanner.style.padding = '2px 6px';
+        conflictBanner.style.borderRadius = '4px';
+        conflictBanner.style.fontSize = '10px';
+        conflictBanner.style.fontWeight = '600';
+        conflictBanner.style.marginBottom = '4px';
+        conflictBanner.textContent = '⚠️ SYNC CONFLICT';
+        descWrap.appendChild(conflictBanner);
+      }
+      
       const descText = document.createElement('div'); descText.className = 'desc-text';
       const short = (e.description || ''); descText.textContent = short.length > 60 ? short.slice(0, 60) + '…' : short;
       if (e.tags?.length) {
@@ -178,7 +206,17 @@
   const isImage = window.MemoCore.isImage;
   const imgsAll = Array.isArray(e.images) ? e.images.filter(Boolean) : [];
   const imgs = imgsAll.filter(src => isImage(src));
-  const otherFiles = (e.attachments || []).filter(a => a && a.url && !isImage(a.url));
+  const otherFiles = (e.attachments || []).filter(a => {
+    if (!a) return false;
+    // For attachments, check the storedPath or type, not the blob URL
+    const checkPath = a.storedPath || a.url;
+    const isImageFile = isImage(checkPath);
+    // Also check MIME type if available
+    if (a.type && !isImageFile) {
+      return !a.type.startsWith('image/');
+    }
+    return !isImageFile;
+  });
   const count = imgs.length;
       if (count > 0) {
         const container = document.createElement('div'); container.className = 'inline-thumbs';
@@ -281,7 +319,17 @@
     if (!e || !els.detailContent) return;
     const isImage = window.MemoCore.isImage;
     const imgsOnly = (e.images || []).filter(src => isImage(src));
-    const otherFiles = (e.attachments || []).filter(a => a && a.url && !isImage(a.url));
+    const otherFiles = (e.attachments || []).filter(a => {
+      if (!a) return false;
+      // For attachments, check the storedPath or type, not the blob URL
+      const checkPath = a.storedPath || a.url;
+      const isImageFile = isImage(checkPath);
+      // Also check MIME type if available
+      if (a.type && !isImageFile) {
+        return !a.type.startsWith('image/');
+      }
+      return !isImageFile;
+    });
     const imgs = imgsOnly.map((src, i) => `<img data-eid="${e.id}" data-idx="${i}" src="${src}" alt="" class="thumb" style="width:60px;height:60px;margin:2px;cursor:pointer;">`).join('');
     els.detailContent.innerHTML = `
       <div class="muted">Date: ${e.purchaseDate || (e.ts ? (new Date(e.ts)).toISOString().slice(0, 10) : '')} • ${e.category}</div>

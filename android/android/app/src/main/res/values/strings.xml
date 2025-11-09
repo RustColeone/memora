@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">memo_system</string>
-    <string name="title_activity_main">memo_system</string>
-    <string name="package_name">com.leo_memo_system.app</string>
-    <string name="custom_url_scheme">com.leo_memo_system.app</string>
-</resources>

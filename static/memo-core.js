@@ -105,7 +105,13 @@ const els = {
   tax: $('#tax'),
   adjustment: $('#adjustment'),
   total: $('#total'),
-  dropzone: $('#dropzone')
+  dropzone: $('#dropzone'),
+  // recycle bin
+  recycleBinBtn: $('#recycleBinBtn'),
+  recycleBinDlg: $('#recycleBinDlg'),
+  recycleBinFeed: $('#recycleBinFeed'),
+  emptyRecycleBin: $('#emptyRecycleBin'),
+  closeRecycleBin: $('#closeRecycleBin')
 };
 
 // No-op hook (memo-filter.js may override visually)
@@ -120,6 +126,7 @@ const SETTINGS_KEY = 'memo_settings_v1';
 const CHAT_KEY = (MEMO_VARIANT === 'finance') ? 'chat_finance_v1' : 'chat_default_v1';
 
 let MODE = 'detecting'; // 'server' | 'local' | 'capacitor'
+window.MODE = MODE; // Make MODE accessible globally for sync manager
 let db = ({ entries: [] });
 let settings = ({ categories: ['Uncategorized'], tags: [], tagCounts: {}, fsEnabled: false, memoDirHandle: undefined });
 
@@ -140,15 +147,18 @@ async function detectMode() {
     if (r.ok) {
       const j = await r.json();
       MODE = (j && j.server) ? 'server' : 'local';
+      window.MODE = MODE; // Update global
       return MODE;
     }
   } catch (e) { /* ignore */ }
   // If variant bootstrap put us in Capacitor native, prefer that over local
   if (typeof window !== 'undefined' && (window.CAP_BOOT || window.__CAP_MODE__)) {
     MODE = 'capacitor';
+    window.MODE = MODE; // Update global
     return MODE;
   }
   MODE = 'local';
+  window.MODE = MODE; // Update global
   return MODE;
 }
 
@@ -183,6 +193,20 @@ const ServerAPI = {
     const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
     const r = await fetch(`${API_BASE}/api/memos/${encodeURIComponent(id)}${qp}`, { method: 'DELETE' });
     if (!r.ok) throw new Error('Failed to delete memo');
+  },
+  async removePermanent(id) {
+    const qp = MEMO_VARIANT === 'default' ? '?permanent=true' : `?variant=${encodeURIComponent(MEMO_VARIANT)}&permanent=true`;
+    const r = await fetch(`${API_BASE}/api/memos/${encodeURIComponent(id)}${qp}`, { method: 'DELETE' });
+    if (!r.ok) throw new Error('Failed to permanently delete memo');
+  },
+  async restore(id) {
+    const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
+    const r = await fetch(`${API_BASE}/api/memos/${encodeURIComponent(id)}/restore${qp}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (!r.ok) throw new Error('Failed to restore memo');
+    return r.json();
   },
   async upload(file) {
     const fd = new FormData();
@@ -337,17 +361,48 @@ async function readTextFileIfExists(dir, name) {
 }
 
 async function readEntriesFromFS(rootDir) {
-  // Try primary file; if missing, try legacy memo.json
+  // Try reading from data/ folder first (preferred location matching server structure)
+  try {
+    const dataDir = await rootDir.getDirectoryHandle('data');
+    const primary = await readTextFileIfExists(dataDir, variantDataFileName());
+    if (primary) {
+      try { 
+        const parsed = JSON.parse(primary);
+        // Handle both server format (array) and old format ({entries: []})
+        if (Array.isArray(parsed)) {
+          return { entries: parsed };
+        }
+        return parsed;
+      } catch { 
+        return { entries: [] }; 
+      }
+    }
+  } catch {
+    // data/ folder doesn't exist, fall back to root
+  }
+  
+  // Fall back to root directory (legacy location)
   const primary = await readTextFileIfExists(rootDir, variantDataFileName());
   const legacy = primary == null ? await readTextFileIfExists(rootDir, 'memo.json') : null;
   const raw = primary ?? legacy;
   if (!raw) return { entries: [] };
-  try { return JSON.parse(raw); } catch { return { entries: [] }; }
+  try { 
+    const parsed = JSON.parse(raw);
+    // Handle both server format (array) and old format ({entries: []})
+    if (Array.isArray(parsed)) {
+      return { entries: parsed };
+    }
+    return parsed;
+  } catch { 
+    return { entries: [] }; 
+  }
 }
 
 async function writeEntriesToFS(rootDir, data) {
+  // Write to data/ folder (matching server structure)
+  const dataDir = await rootDir.getDirectoryHandle('data', { create: true });
   const name = variantDataFileName();
-  const fh = await rootDir.getFileHandle(name, { create: true });
+  const fh = await dataDir.getFileHandle(name, { create: true });
   const w = await fh.createWritable();
   await w.write(JSON.stringify(data || { entries: [] }, null, 2));
   await w.close();
@@ -356,12 +411,26 @@ async function writeEntriesToFS(rootDir, data) {
 // -----------------------
 // Hashbook (local FS) for de-duplication
 async function readHashbookFS(rootDir) {
+  // Try reading from data/ folder first
+  try {
+    const dataDir = await rootDir.getDirectoryHandle('data');
+    const raw = await readTextFileIfExists(dataDir, HASHBOOK_FILE);
+    if (raw) {
+      try { const obj = JSON.parse(raw); return (obj && typeof obj === 'object') ? obj : {}; } catch { return {}; }
+    }
+  } catch {
+    // data/ folder doesn't exist, fall back to root
+  }
+  
+  // Fall back to root directory
   const raw = await readTextFileIfExists(rootDir, HASHBOOK_FILE);
   if (!raw) return {};
   try { const obj = JSON.parse(raw); return (obj && typeof obj === 'object') ? obj : {}; } catch { return {}; }
 }
 async function writeHashbookFS(rootDir, obj) {
-  const fh = await rootDir.getFileHandle(HASHBOOK_FILE, { create: true });
+  // Write to data/ folder (matching server structure)
+  const dataDir = await rootDir.getDirectoryHandle('data', { create: true });
+  const fh = await dataDir.getFileHandle(HASHBOOK_FILE, { create: true });
   const w = await fh.createWritable();
   await w.write(JSON.stringify(obj || {}, null, 2));
   await w.close();
@@ -400,10 +469,26 @@ async function loadFromFolder(dirHandle) {
     const storedPaths = [];
     const fsImgs = Array.isArray(rec.images) ? rec.images : [];
     for (const im of fsImgs) {
-      const sp = (im && typeof im === 'object') ? im.storedPath : (typeof im === 'string' ? im : null);
+      // Handle both server format ("/uploads/DATE/FILE") and storedPath format
+      let sp = null;
+      if (typeof im === 'string') {
+        // Server URL format: "/uploads/DATE/FILE"
+        const match = im.match(/\/uploads\/([^\/]+\/[^\/]+)/);
+        sp = match ? match[1] : im;
+      } else if (im && typeof im === 'object' && im.storedPath) {
+        // Old storedPath format: {storedPath: "DATE/FILE"}
+        sp = im.storedPath;
+      }
+      
       if (sp) {
-        try { imgs.push(await urlFromStoredPath(dirHandle, sp)); storedPaths.push(sp); }
-        catch (err) { console.warn('Missing image on disk:', sp); }
+        try { 
+          const blobUrl = await urlFromStoredPath(dirHandle, sp); 
+          imgs.push(blobUrl); 
+          storedPaths.push(sp);
+        }
+        catch (err) { 
+          // Silently skip missing images
+        }
       }
     }
     const base = {
@@ -414,7 +499,45 @@ async function loadFromFolder(dirHandle) {
       ts: rec.ts || Date.now(),
       images: imgs,
       _storedPaths: storedPaths,
+      // Include server metadata fields
+      createdAt: rec.createdAt,
+      updatedAt: rec.updatedAt,
+      deletedAt: rec.deletedAt,
+      deletedBy: rec.deletedBy,
+      permanentDeleteAt: rec.permanentDeleteAt
     };
+    // Handle attachments - convert url or storedPath to blob URLs
+    if (Array.isArray(rec.attachments)) {
+      const attachments = [];
+      for (const att of rec.attachments) {
+        // Handle both server format (url field) and old format (storedPath field)
+        let sp = att.storedPath;
+        if (!sp && att.url) {
+          // Convert server URL to storedPath
+          const match = att.url.match(/\/uploads\/([^\/]+\/[^\/]+)/);
+          sp = match ? match[1] : att.url;
+        }
+        
+        if (sp) {
+          try {
+            const blobUrl = await urlFromStoredPath(dirHandle, sp);
+            attachments.push({
+              name: att.name,
+              url: blobUrl,
+              storedPath: sp,
+              type: att.type || 'application/octet-stream'
+            });
+          } catch (err) {
+            // Skip missing attachments
+            console.log(`⚠️ Attachment not found: ${sp}`);
+          }
+        }
+      }
+      if (attachments.length > 0) {
+        base.attachments = attachments;
+      }
+      console.log(`📎 Entry ${rec.id}: loaded ${attachments.length} attachments from ${rec.attachments.length} in JSON`);
+    }
     // Finance fields pass-through
     if (MEMO_VARIANT === 'finance') {
       base.purchaseDate = rec.purchaseDate || (rec.ts ? new Date(rec.ts).toISOString().slice(0,10) : '');
@@ -435,6 +558,11 @@ async function loadFromFolder(dirHandle) {
 }
 
 function fsSupported() { return 'showDirectoryPicker' in window; }
+
+// NOTE: Folder selection has been moved to the Settings panel (memo-settings.js)
+// The chooseDirBtn event listener is now handled there for better organization
+// Original code preserved below for reference:
+/*
 if (els.chooseDirBtn) {
   els.chooseDirBtn.addEventListener('click', async () => {
     if (!fsSupported()) { alert('Use Chrome/Edge desktop for File System Access API.'); return; }
@@ -449,6 +577,7 @@ if (els.chooseDirBtn) {
     } catch (e) { console.warn(e); }
   });
 }
+*/
 
 // =======================
 // Capacitor Filesystem support (when in native app)
@@ -823,6 +952,22 @@ async function onSaveEntry() {
   entry.category = category;
   entry.tags = tags;
   entry.ts = isNew ? ts : entry.ts;
+  
+  // Update timestamps
+  if (isNew) {
+    entry.createdAt = new Date(ts).toISOString();
+    entry.updatedAt = new Date(ts).toISOString();
+  } else {
+    // Keep createdAt, update updatedAt
+    entry.updatedAt = new Date().toISOString();
+  }
+  
+  // Clear conflict flags when user edits an entry
+  if (entry._hasConflict) {
+    delete entry._hasConflict;
+    delete entry._conflictClientVersion;
+    delete entry._conflictResolvedAt;
+  }
 
   // Variant may add/modify fields (e.g., finance data)
   if (window.MemoVariant && typeof window.MemoVariant.collectAdditionalFields === 'function') {
@@ -861,6 +1006,11 @@ async function onSaveEntry() {
       const i = db.entries.findIndex(e => e.id === entry.id);
       if (i >= 0) db.entries[i] = saved;
     }
+    
+    // Mark as modified for sync
+    if (window.SyncManager) {
+      window.SyncManager.markModified(saved.id);
+    }
   } else if (MODE === 'capacitor' && CapFS.ready()) {
     // Native app private storage
     entry.images = [];
@@ -888,7 +1038,11 @@ async function onSaveEntry() {
         usedStoredPath = existing;
         book[hash].count = Math.max(1, parseInt(book[hash].count || 1, 10) + 1);
       } else {
-        const newName = `${dateFolderName}_${base || 'post'}_${prefix}${String(idx + 1).padStart(2, '0')}.${ext}`;
+        // Use HHMM_originalname.ext format to match server
+        const d = new Date(entry.ts);
+        const hhmm = String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0');
+        const baseName = f.name.replace(/\.[^.]+$/, ''); // Remove extension
+        const newName = `${hhmm}_${baseName}.${ext}`;
         const relPath = `${dateFolderName}/${newName}`;
         await CapFS.writeBinary(relPath, await f.arrayBuffer());
         usedStoredPath = relPath;
@@ -954,7 +1108,11 @@ async function onSaveEntry() {
           usedStoredPath = book[hash].storedPath;
           book[hash].count = Math.max(1, parseInt(book[hash].count || 1, 10) + 1);
         } else if (canWrite) {
-          const newName = `${dateFolderName}_${base || 'post'}_${prefix}${String(idx + 1).padStart(2, '0')}.${ext}`;
+          // Use HHMM_originalname.ext format to match server
+          const d = new Date(entry.ts);
+          const hhmm = String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0');
+          const baseName = f.name.replace(/\.[^.]+$/, ''); // Remove extension
+          const newName = `${hhmm}_${baseName}.${ext}`;
           const fileHandle = await dateDir.getFileHandle(newName, { create: true });
           const writable = await fileHandle.createWritable();
           await writable.write(await f.arrayBuffer());
@@ -1010,32 +1168,209 @@ async function onSaveEntry() {
 
 async function onDeleteEntry() {
   const id = els.detailDlg?.dataset?.entryId; if (!id) return;
-  if (!confirm('Delete this entry?')) return;
+  if (!confirm('Move this entry to recycle bin?')) return;
+
+  const entry = db.entries.find(e => e.id === id);
+  if (!entry) return;
+
+  // Soft delete: mark as deleted instead of removing
+  const now = Date.now();
+  const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+  entry.deletedAt = now;
+  entry.deletedBy = MODE === 'server' ? 'server' : 'local';
+  entry.permanentDeleteAt = now + thirtyDays;
+  entry.updatedAt = now;
 
   if (MODE === 'server') {
-    await ServerAPI.remove(id);
+    await ServerAPI.update(id, {
+      deletedAt: entry.deletedAt,
+      deletedBy: entry.deletedBy,
+      permanentDeleteAt: entry.permanentDeleteAt,
+      updatedAt: entry.updatedAt
+    });
+  }
+
+  recomputeTags(); saveAll();
+  els.detailDlg?.close(); 
+  renderFeed();
+  updateRecycleBinBadge();
+}
+
+// =======================
+// Recycle Bin Functions
+// =======================
+function updateRecycleBinBadge() {
+  if (!els.recycleBinBtn) return;
+  const deletedCount = db.entries.filter(e => e.deletedAt !== null && e.deletedAt !== undefined).length;
+  if (deletedCount > 0) {
+    els.recycleBinBtn.innerHTML = `🗑️ Bin (${deletedCount})`;
+  } else {
+    els.recycleBinBtn.innerHTML = `🗑️ Bin`;
+  }
+}
+
+async function restoreEntry(entryId) {
+  const entry = db.entries.find(e => e.id === entryId);
+  if (!entry || !entry.deletedAt) return;
+  
+  // Clear deletion markers
+  entry.deletedAt = null;
+  entry.deletedBy = null;
+  entry.permanentDeleteAt = null;
+  entry.updatedAt = Date.now();
+  
+  if (MODE === 'server') {
+    await ServerAPI.restore(entryId);
+  }
+  
+  saveAll();
+  renderFeed();
+  renderRecycleBin();
+  updateRecycleBinBadge();
+}
+
+async function permanentlyDeleteEntry(entryId) {
+  const entry = db.entries.find(e => e.id === entryId);
+  if (!entry) return;
+
+  // Perform actual deletion (remove files and entry)
+  if (MODE === 'server') {
+    await ServerAPI.removePermanent(entryId);
   } else if (MODE === 'capacitor' && CapFS.ready()) {
-    const entry = db.entries.find(e => e.id === id);
     if (entry && Array.isArray(entry._storedPaths)) {
-      for (const sp of entry._storedPaths) { try { await capDecrementAndMaybeDelete(sp); } catch (e) { console.warn('Cap delete failed', sp, e); } }
-      // Remove from JSON
-      await capRemoveMemoRecord(id);
+      for (const sp of entry._storedPaths) {
+        try { await capDecrementAndMaybeDelete(sp); } catch (e) { console.warn('Cap delete failed', sp, e); }
+      }
+      await capRemoveMemoRecord(entryId);
     }
   } else {
-    // Local mode: cleanup files via hashbook
-    const entry = db.entries.find(e => e.id === id);
     if (entry && settings.fsEnabled && settings.memoDirHandle && Array.isArray(entry._storedPaths)) {
       for (const sp of entry._storedPaths) {
         try { await decrementAndMaybeDelete(settings.memoDirHandle, sp); } catch (e) { console.warn('Failed to delete image', sp, e); }
       }
-      // Remove record from FS JSON
-      await removeMemoRecord(settings.memoDirHandle, id);
+      await removeMemoRecord(settings.memoDirHandle, entryId);
     }
   }
-  db.entries = db.entries.filter(e => e.id !== id);
-  recomputeTags(); saveAll();
-  els.detailDlg?.close(); renderFeed();
+
+  // Remove from entries array
+  db.entries = db.entries.filter(e => e.id !== entryId);
+  recomputeTags();
+  saveAll();
+  renderRecycleBin();
+  updateRecycleBinBadge();
 }
+
+async function emptyRecycleBin() {
+  const deleted = db.entries.filter(e => e.deletedAt !== null);
+  
+  if (deleted.length === 0) {
+    alert('Recycle bin is already empty.');
+    return;
+  }
+
+  if (!confirm(`Permanently delete all ${deleted.length} items in recycle bin? This cannot be undone!`)) {
+    return;
+  }
+  
+  // Delete each entry permanently
+  for (const entry of deleted) {
+    await permanentlyDeleteEntry(entry.id);
+  }
+  
+  alert(`${deleted.length} items permanently deleted.`);
+  renderRecycleBin();
+}
+
+function renderRecycleBin() {
+  if (!els.recycleBinFeed) return;
+
+  const deleted = db.entries
+    .filter(e => e.deletedAt !== null && e.deletedAt !== undefined) // ← Only truly deleted entries
+    .sort((a, b) => b.deletedAt - a.deletedAt);
+  
+  els.recycleBinFeed.innerHTML = '';
+  
+  if (deleted.length === 0) {
+    els.recycleBinFeed.innerHTML = '<div class="muted" style="text-align:center;padding:40px 20px">Recycle bin is empty.</div>';
+    return;
+  }
+  
+  deleted.forEach(e => {
+    const now = Date.now();
+    const deletedAgo = Math.floor((now - e.deletedAt) / (24 * 60 * 60 * 1000));
+    const daysLeft = Math.max(0, Math.floor((e.permanentDeleteAt - now) / (24 * 60 * 60 * 1000)));
+    
+    const card = document.createElement('div');
+    card.className = 'card deleted';
+    card.innerHTML = `
+      <div class="muted">🗑️ ${e.category} • Deleted ${deletedAgo} day(s) ago</div>
+      <div style="margin:8px 0"><strong>${(e.description || '(No description)').substring(0, 100)}${e.description && e.description.length > 100 ? '...' : ''}</strong></div>
+      <div class="muted" style="color:#f59e0b">Auto-delete in: ${daysLeft} days</div>
+      <div class="tagsline" style="margin-top:6px">${(e.tags || []).map(t => `<span class="tagpill">#${t}</span>`).join('')}</div>
+      <div class="inline" style="margin-top:10px;gap:8px">
+        <button class="primary restore-btn" data-id="${e.id}">Restore</button>
+        <button class="danger delete-perm-btn" data-id="${e.id}">Delete Permanently</button>
+      </div>
+    `;
+    
+    card.querySelector('.restore-btn').addEventListener('click', () => {
+      restoreEntry(e.id);
+    });
+    
+    card.querySelector('.delete-perm-btn').addEventListener('click', () => {
+      if (confirm('Permanently delete this entry? Cannot be undone!')) {
+        permanentlyDeleteEntry(e.id);
+      }
+    });
+    
+    els.recycleBinFeed.appendChild(card);
+  });
+  
+  updateRecycleBinBadge();
+}
+
+async function cleanupExpiredDeletes() {
+  const now = Date.now();
+  const permanentlyDeleted = [];
+  
+  const toDelete = db.entries.filter(e => {
+    if (e.permanentDeleteAt && now >= e.permanentDeleteAt) {
+      permanentlyDeleted.push(e);
+      return true;
+    }
+    return false;
+  });
+
+  if (toDelete.length === 0) return;
+  
+  console.log(`Auto-deleting ${toDelete.length} expired entries from recycle bin...`);
+  
+  for (const entry of toDelete) {
+    await permanentlyDeleteEntry(entry.id);
+  }
+  
+  console.log(`Auto-deleted ${toDelete.length} expired entries`);
+}
+
+// Recycle bin event listeners
+if (els.recycleBinBtn) {
+  els.recycleBinBtn.addEventListener('click', () => {
+    renderRecycleBin();
+    if (els.recycleBinDlg) els.recycleBinDlg.showModal();
+  });
+}
+if (els.closeRecycleBin) {
+  els.closeRecycleBin.addEventListener('click', () => {
+    if (els.recycleBinDlg) els.recycleBinDlg.close();
+  });
+}
+if (els.emptyRecycleBin) {
+  els.emptyRecycleBin.addEventListener('click', emptyRecycleBin);
+}
+
+// =======================
+// End Recycle Bin Functions
+// =======================
 
 // =======================
 // Detail view dispatcher
@@ -1164,12 +1499,23 @@ async function coreInit() {
   refreshCategoryControls();
   if (els.fsStatus) els.fsStatus.textContent = settings.fsEnabled ? 'enabled' : 'disabled';
 
+  // Clean up expired deleted entries (30+ days old)
+  await cleanupExpiredDeletes();
+  updateRecycleBinBadge();
+
+  // Set up daily cleanup
+  setInterval(cleanupExpiredDeletes, 24 * 60 * 60 * 1000);
+
   await detectMode();
 
   if (MODE === 'server') {
     $$('[data-hide-when-server]').forEach(el => el.hidden = true);
     settings.fsEnabled = false;
     if (els.fsStatus) els.fsStatus.textContent = 'disabled';
+    
+    // Show sync status indicator
+    const syncStatusEl = document.getElementById('syncStatus');
+    if (syncStatusEl) syncStatusEl.style.display = 'flex';
 
     try {
       const memos = await ServerAPI.list();
@@ -1192,9 +1538,17 @@ async function coreInit() {
       recomputeTags(); saveAll();
       refreshCategoryControls();
       renderFeed();
+      
+      // Initialize sync manager for server mode
+      if (window.SyncManager) {
+        await window.SyncManager.init();
+        // Perform initial sync after a brief delay
+        setTimeout(() => window.SyncManager.performSync(), 1000);
+      }
     } catch (e) {
       console.error('Failed to load memos from server; falling back to local.', e);
       MODE = 'local';
+      window.MODE = MODE; // Update global
       renderFeed();
     }
   } else {
@@ -1267,62 +1621,185 @@ async function coreInit() {
 }
 
 // Expose a tiny API for variants
-window.MemoCore = { start: coreInit, getState: () => ({ db, settings, activeFilters, els }), isImage: (u) => /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i.test(u || '') };
+window.MemoCore = { 
+  start: coreInit, 
+  getState: () => ({ db, settings, activeFilters, els }), 
+  isImage: (u) => {
+    // Accept blob URLs (created from local files)
+    if ((u || '').startsWith('blob:')) return true;
+    // Accept data URLs for images
+    if ((u || '').startsWith('data:image/')) return true;
+    // Check file extension
+    return /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i.test(u || '');
+  },
+  saveAll: saveAll,
+  renderFeed: () => window.MemoVariant && window.MemoVariant.renderFeed && window.MemoVariant.renderFeed(),
+  // File System Access API helpers
+  fsSupported: fsSupported,
+  loadFromFolder: loadFromFolder,
+  ensurePermission: ensurePermission,
+  readEntriesFromFS: readEntriesFromFS,
+  urlFromStoredPath: urlFromStoredPath,
+  idbPut: idbPut,
+  IDB_KEY_ROOT: IDB_KEY_ROOT,
+  writeEntriesToFS: writeEntriesToFS
+};
 
 // ===== Helpers needed by local FS write path =====
 async function getOrCreateDir(root, name) { return await root.getDirectoryHandle(name, { create: true }); }
 async function updateMemoJson(rootDir, entry, imgInfo) {
+  // Write to data/ folder (matching server structure)
+  const dataDir = await rootDir.getDirectoryHandle('data', { create: true });
   const filename = variantDataFileName();
   let jsonHandle;
-  try { jsonHandle = await rootDir.getFileHandle(filename); }
-  catch {
-    jsonHandle = await rootDir.getFileHandle(filename, { create: true });
-    const w = await jsonHandle.createWritable(); await w.write(JSON.stringify({ entries: [] }, null, 2)); await w.close();
+  try { 
+    jsonHandle = await dataDir.getFileHandle(filename); 
+  } catch {
+    jsonHandle = await dataDir.getFileHandle(filename, { create: true });
+    const w = await jsonHandle.createWritable(); 
+    await w.write(JSON.stringify([], null, 2)); // Empty array in server format
+    await w.close();
   }
   const file = await jsonHandle.getFile();
   let data = { entries: [] };
-  try { data = JSON.parse(await file.text()); } catch { }
+  try { 
+    const parsed = JSON.parse(await file.text());
+    // Handle both server format (array) and old format ({entries: []})
+    if (Array.isArray(parsed)) {
+      data = { entries: parsed };
+    } else {
+      data = parsed;
+    }
+  } catch { }
+  
   let rec = data.entries.find(x => x.id === entry.id);
   if (!rec) {
-    rec = { id: entry.id, description: entry.description, category: entry.category, tags: entry.tags, ts: entry.ts, images: [] };
+    rec = { 
+      id: entry.id, 
+      description: entry.description, 
+      category: entry.category, 
+      tags: entry.tags || [], 
+      ts: entry.ts, 
+      createdAt: entry.createdAt || new Date(entry.ts).toISOString(),
+      updatedAt: new Date().toISOString(),
+      deletedAt: null,
+      deletedBy: null,
+      permanentDeleteAt: null,
+      images: [],
+      attachments: []
+    };
     if (MEMO_VARIANT === 'finance') {
-      rec.purchaseDate = entry.purchaseDate; rec.price = entry.price; rec.tax = entry.tax; rec.adjustment = entry.adjustment; rec.total = entry.total;
+      rec.purchaseDate = entry.purchaseDate; 
+      rec.price = entry.price; 
+      rec.tax = entry.tax; 
+      rec.adjustment = entry.adjustment; 
+      rec.total = entry.total;
     }
     data.entries.push(rec);
   } else {
-    rec.description = entry.description; rec.category = entry.category; rec.tags = entry.tags; rec.ts = entry.ts;
+    rec.description = entry.description; 
+    rec.category = entry.category; 
+    rec.tags = entry.tags || []; 
+    rec.ts = entry.ts;
+    rec.updatedAt = new Date().toISOString();
     if (MEMO_VARIANT === 'finance') {
-      rec.purchaseDate = entry.purchaseDate; rec.price = entry.price; rec.tax = entry.tax; rec.adjustment = entry.adjustment; rec.total = entry.total;
+      rec.purchaseDate = entry.purchaseDate; 
+      rec.price = entry.price; 
+      rec.tax = entry.tax; 
+      rec.adjustment = entry.adjustment; 
+      rec.total = entry.total;
     }
   }
+  
   if (imgInfo?.storedPath) {
     const sp = imgInfo.storedPath;
-    const exists = (rec.images || []).some(im => (im && typeof im === 'object' ? im.storedPath : im) === sp);
-    if (!exists) rec.images.push({ storedPath: sp, originalName: imgInfo.originalName });
+    const serverUrl = `/uploads/${sp}`;
+    // Check if this image already exists (compare server URLs)
+    const exists = (rec.images || []).includes(serverUrl);
+    if (!exists) {
+      rec.images.push(serverUrl);
+    }
   }
-  const w = await jsonHandle.createWritable(); await w.write(JSON.stringify(data, null, 2)); await w.close();
+  
+  // Write in server format (array, not object)
+  const w = await jsonHandle.createWritable(); 
+  await w.write(JSON.stringify(data.entries, null, 2)); 
+  await w.close();
 }
 
 async function replaceMemoRecordImages(rootDir, entry, storedPaths, attachments) {
+  // Write to data/ folder (matching server structure)
+  const dataDir = await rootDir.getDirectoryHandle('data', { create: true });
   const name = variantDataFileName();
-  const fh = await rootDir.getFileHandle(name, { create: true });
+  const fh = await dataDir.getFileHandle(name, { create: true });
   const file = await fh.getFile();
   let data = { entries: [] };
-  try { data = JSON.parse(await file.text()); } catch { }
+  try { 
+    const parsed = JSON.parse(await file.text());
+    // Handle both server format (array) and old format ({entries: []})
+    if (Array.isArray(parsed)) {
+      data = { entries: parsed };
+    } else {
+      data = parsed;
+    }
+  } catch { }
+  
   let rec = data.entries.find(x => x.id === entry.id);
   if (!rec) {
-    rec = { id: entry.id, description: entry.description, category: entry.category, tags: entry.tags, ts: entry.ts, images: [] };
-    if (MEMO_VARIANT === 'finance') { rec.purchaseDate = entry.purchaseDate; rec.price = entry.price; rec.tax = entry.tax; rec.adjustment = entry.adjustment; rec.total = entry.total; }
+    rec = { 
+      id: entry.id, 
+      description: entry.description, 
+      category: entry.category, 
+      tags: entry.tags || [], 
+      ts: entry.ts,
+      createdAt: entry.createdAt || new Date(entry.ts).toISOString(),
+      updatedAt: new Date().toISOString(),
+      deletedAt: null,
+      deletedBy: null,
+      permanentDeleteAt: null,
+      images: [],
+      attachments: []
+    };
+    if (MEMO_VARIANT === 'finance') { 
+      rec.purchaseDate = entry.purchaseDate; 
+      rec.price = entry.price; 
+      rec.tax = entry.tax; 
+      rec.adjustment = entry.adjustment; 
+      rec.total = entry.total; 
+    }
     data.entries.push(rec);
   } else {
-    rec.description = entry.description; rec.category = entry.category; rec.tags = entry.tags; rec.ts = entry.ts;
-    if (MEMO_VARIANT === 'finance') { rec.purchaseDate = entry.purchaseDate; rec.price = entry.price; rec.tax = entry.tax; rec.adjustment = entry.adjustment; rec.total = entry.total; }
+    rec.description = entry.description; 
+    rec.category = entry.category; 
+    rec.tags = entry.tags || []; 
+    rec.ts = entry.ts;
+    rec.updatedAt = new Date().toISOString();
+    if (MEMO_VARIANT === 'finance') { 
+      rec.purchaseDate = entry.purchaseDate; 
+      rec.price = entry.price; 
+      rec.tax = entry.tax; 
+      rec.adjustment = entry.adjustment; 
+      rec.total = entry.total; 
+    }
   }
-  rec.images = (storedPaths || []).filter(Boolean).map(sp => ({ storedPath: sp }));
+  
+  // Use server URL format for images
+  rec.images = (storedPaths || []).filter(Boolean).map(sp => `/uploads/${sp}`);
+  
   if (attachments && attachments.length) {
-    rec.attachments = attachments.map(a => ({ name: a.name, storedPath: a.storedPath || a.url, type: a.type }));
+    rec.attachments = attachments.map(a => ({ 
+      name: a.name, 
+      url: a.storedPath ? `/uploads/${a.storedPath}` : a.url,
+      type: a.type 
+    }));
+  } else {
+    rec.attachments = [];
   }
-  const w = await fh.createWritable(); await w.write(JSON.stringify(data, null, 2)); await w.close();
+  
+  // Write in server format (array, not object)
+  const w = await fh.createWritable(); 
+  await w.write(JSON.stringify(data.entries, null, 2)); 
+  await w.close();
 }
 
 // ===== Capacitor equivalents for JSON updates and cleanup =====

@@ -16,6 +16,11 @@
       category: m.category || 'Uncategorized',
       tags: m.tags || [],
       ts: m.ts || Date.now(),
+      createdAt: m.createdAt,
+      updatedAt: m.updatedAt,
+      deletedAt: m.deletedAt || null,
+      deletedBy: m.deletedBy || null,
+      permanentDeleteAt: m.permanentDeleteAt || null,
       images: m.images || [],
       attachments: m.attachments || [], // new field for non-image files
     };
@@ -29,6 +34,7 @@
     const dt = activeFilters.dateTo ? (new Date(activeFilters.dateTo).getTime() + 24 * 3600 * 1000 - 1) : null;
 
     const filtered = db.entries
+      .filter(e => e.deletedAt === null || e.deletedAt === undefined) // ← Exclude deleted entries
       .filter(e => (cat === '__ALL__' ? true : e.category === cat))
       .filter(e => activeFilters.cats.size ? activeFilters.cats.has(e.category) : true)
       .filter(e => {
@@ -48,11 +54,36 @@
     for (const e of filtered) {
       const card = document.createElement('div');
       card.className = 'card';
+      
+      // Add conflict indicator styling
+      if (e._hasConflict) {
+        card.style.borderColor = '#f59e0b';
+        card.style.borderWidth = '2px';
+        card.style.backgroundColor = 'rgba(245, 158, 11, 0.05)';
+      }
 
       const isImage = window.MemoCore.isImage;
       const imageList = (e.images || []).filter(src => isImage(src));
-      const otherFiles = (e.attachments || []).filter(a => a && a.url && !isImage(a.url));
+      const otherFiles = (e.attachments || []).filter(a => {
+        if (!a) return false;
+        // For attachments, check the storedPath or type, not the blob URL
+        const checkPath = a.storedPath || a.url;
+        const isImageFile = isImage(checkPath);
+        // Also check MIME type if available
+        if (a.type && !isImageFile) {
+          return !a.type.startsWith('image/');
+        }
+        return !isImageFile;
+      });
+      
+      // Debug logging for attachments
+      if (e.id === 'e_52oqj1go7lmg2xl0i5') {
+        console.log('Entry attachments:', e.attachments);
+        console.log('Filtered otherFiles:', otherFiles);
+      }
+      
       const count = imageList.length;
+      
       const thumbs = [];
       if (count <= 4) {
         for (let i = 0; i < count; i++) {
@@ -65,12 +96,21 @@
         const extra = count - 3;
         thumbs.push(`<div class="more" data-eid="${e.id}" data-idx="3">+${extra}</div>`);
       }
+      
+      // Add conflict warning banner
+      const conflictBanner = e._hasConflict 
+        ? `<div style="background:#f59e0b;color:#000;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600;margin-bottom:6px;">⚠️ SYNC CONFLICT - Please review</div>`
+        : '';
 
       card.innerHTML = `
+        ${conflictBanner}
         <div class="muted">${fmtDate(e.ts)} • ${e.category}</div>
         <div title="${(e.description || '').replace(/"/g, '&quot;')}">${(e.description || '').length > 120 ? e.description.slice(0, 120) + '…' : (e.description || '')}</div>
   <div class="thumbs">${(count ? thumbs.join('') : '<span class="muted">No images</span>')}</div>
-  ${otherFiles.length ? `<div class="attachments" style="display:flex;flex-direction:column;gap:4px;margin-top:4px;">` + otherFiles.slice(0,3).map(a=>`<a href="${a.url}" target="_blank" rel="noopener" class="filelink" style="font-size:12px;color:#93c5fd;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📄 ${a.name || a.url.split('/').pop()}</a>`).join('') + (otherFiles.length>3?`<div class="muted" style="font-size:11px;">+${otherFiles.length-3} more file(s)</div>`:'') + `</div>`:''}
+  ${otherFiles.length ? `<div class="attachments" style="display:flex;flex-direction:column;gap:4px;margin-top:4px;">` + otherFiles.slice(0,3).map(a => {
+    const fileUrl = a.url || a.storedPath;
+    return `<a href="${fileUrl}" target="_blank" rel="noopener" class="filelink" style="font-size:12px;color:#93c5fd;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📄 ${a.name || fileUrl.split('/').pop()}</a>`;
+  }).join('') + (otherFiles.length>3?`<div class="muted" style="font-size:11px;">+${otherFiles.length-3} more file(s)</div>`:'') + `</div>`:''}
         <div class="tagsline">${(e.tags || []).map(t => `<span class="tagpill">#${t}</span>`).join('')}</div>
         <div class="inline"><button class="ghost">Open</button></div>
       `;
@@ -98,14 +138,27 @@
     if (!e || !els.detailContent) return;
     const isImage = window.MemoCore.isImage;
     const imageList = (e.images || []).filter(src => isImage(src));
-    const otherFiles = (e.attachments || []).filter(a => a && a.url && !isImage(a.url));
+    const otherFiles = (e.attachments || []).filter(a => {
+      if (!a) return false;
+      // For attachments, check the storedPath or type, not the blob URL
+      const checkPath = a.storedPath || a.url;
+      const isImageFile = isImage(checkPath);
+      // Also check MIME type if available
+      if (a.type && !isImageFile) {
+        return !a.type.startsWith('image/');
+      }
+      return !isImageFile;
+    });
     const imgs = imageList.map((src, i) => `<img data-eid="${e.id}" data-idx="${i}" src="${src}" alt="">`).join('');
     els.detailContent.innerHTML = `
       <div class="muted">${fmtDate(e.ts)} • ${e.category}</div>
       <h3>${e.description ? e.description.replace(/</g, '&lt;').replace(/\n/g, '<br>') : '(No description)'}</h3>
       <div class="tagsline">${(e.tags || []).map(t => `<span class="tagpill">#${t}</span>`).join('')}</div>
       <div class="thumbs" id="detailThumbs" style="margin-top:10px">${imgs || '<span class="muted">No images</span>'}</div>
-      ${otherFiles.length ? `<div class="filelist" style="margin-top:10px;display:grid;gap:6px;">` + otherFiles.map(a=>`<a href="${a.url}" target="_blank" rel="noopener" style="color:#93c5fd;text-decoration:none;font-size:13px;">📄 ${a.name || a.url.split('/').pop()}</a>`).join('') + `</div>`:''}
+      ${otherFiles.length ? `<div class="filelist" style="margin-top:10px;display:grid;gap:6px;">` + otherFiles.map(a => {
+        const fileUrl = a.url || a.storedPath;
+        return `<a href="${fileUrl}" target="_blank" rel="noopener" style="color:#93c5fd;text-decoration:none;font-size:13px;">📄 ${a.name || fileUrl.split('/').pop()}</a>`;
+      }).join('') + `</div>`:''}
       <div class="muted">Tip: Click to view. Drag to reorder (saves on drop).</div>
     `;
     const cont = els.detailContent.querySelector('#detailThumbs');

@@ -9,6 +9,54 @@
     --chip: #1f2937;
     --border: #1f2937;
     --overlay: rgba(0, 0, 0, .72);
+    --header-bg: rgba(15, 23, 42, .95);
+    --header-bg-stop: rgba(15, 23, 42, .85);
+    --input-bg: #0b1222;
+    --button-bg: #182235;
+    --dropdown-bg: #0b1222;
+    --dropdown-hover: #15213a;
+    --modal-header-bg: #0b1222;
+    --danger-bg: #2a1313;
+    --danger-border: #3b0e0e;
+    --danger-text: #fecaca;
+    --primary-dark: #001a36;
+    --primary-border: #1e40af;
+    --scrollbar-thumb: #243046;
+    --chat-user-bg: #0d1f35;
+    --chat-user-border: #1e3a8a;
+    --chat-assistant-bg: #1c2a40;
+    --chat-assistant-border: #334155;
+}
+
+/* Light mode theme */
+[data-theme="light"] {
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --muted: #64748b;
+    --text: #0f172a;
+    --accent: #3b82f6;
+    --accent2: #10b981;
+    --danger: #ef4444;
+    --chip: #e2e8f0;
+    --border: #e2e8f0;
+    --overlay: rgba(255, 255, 255, .85);
+    --header-bg: rgba(248, 250, 252, .95);
+    --header-bg-stop: rgba(248, 250, 252, .85);
+    --input-bg: #f1f5f9;
+    --button-bg: #e2e8f0;
+    --dropdown-bg: #ffffff;
+    --dropdown-hover: #f1f5f9;
+    --modal-header-bg: #f8fafc;
+    --danger-bg: #fee2e2;
+    --danger-border: #fecaca;
+    --danger-text: #991b1b;
+    --primary-dark: #ffffff;
+    --primary-border: #2563eb;
+    --scrollbar-thumb: #cbd5e1;
+    --chat-user-bg: #dbeafe;
+    --chat-user-border: #93c5fd;
+    --chat-assistant-bg: #e0e7ff;
+    --chat-assistant-border: #c7d2fe;
 }
 
 * {
@@ -26,7 +74,7 @@ header {
     position: sticky;
     top: 0;
     z-index: 10;
-    background: linear-gradient(180deg, rgba(15, 23, 42, .95), rgba(15, 23, 42, .85));
+    background: linear-gradient(180deg, var(--header-bg), var(--header-bg-stop));
     backdrop-filter: blur(6px);
     border-bottom: 1px solid var(--border)
 }
@@ -53,7 +101,7 @@ select,
 input[type="text"],
 input[type="number"],
 input[type="date"] {
-    background: #0b1222;
+    background: var(--input-bg);
     border: 1px solid var(--border);
     color: var(--text);
     padding: 8px 10px;
@@ -68,7 +116,7 @@ input[type="file"] {
 label[type="button"] {
     font-variant-numeric: tabular-nums;
     color: #cbd5e1;
-    background: #182235;
+    background: var(--button-bg);
     border: 1px solid var(--border);
     padding: 8px 12px;
     border-radius: 10px;
@@ -76,18 +124,28 @@ label[type="button"] {
 }
 
 button {
-    background: #182235;
+    background: var(--button-bg);
     color: var(--text);
     border: 1px solid var(--border);
     padding: 8px 12px;
     border-radius: 10px;
-    cursor: pointer
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s, transform 0.1s;
+}
+
+button:hover {
+    filter: brightness(1.1);
+}
+
+button:active {
+    transform: scale(0.98);
 }
 
 button.primary {
     background: var(--accent);
-    border-color: #1e40af;
-    color: #001a36
+    border-color: var(--primary-border);
+    color: var(--primary-dark)
 }
 
 button.ghost {
@@ -95,9 +153,9 @@ button.ghost {
 }
 
 button.danger {
-    background: #2a1313;
-    border-color: #3b0e0e;
-    color: #fecaca
+    background: var(--danger-bg);
+    border-color: var(--danger-border);
+    color: var(--danger-text)
 }
 
 main {
@@ -133,7 +191,7 @@ main {
 
 .feed {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 14px
 }
 
@@ -172,7 +230,7 @@ main {
     height: 72px;
     border-radius: 10px;
     border: 1px solid var(--border);
-    background: #0b1222;
+    background: var(--input-bg);
     display: grid;
     place-items: center;
     font-weight: 600;
@@ -192,11 +250,11 @@ main {
 
 .tagpill {
     font-size: 11px;
-    background: #0b1222;
+    background: var(--input-bg);
     border: 1px solid var(--border);
     padding: 4px 8px;
     border-radius: 999px;
-    color: #cbd5e1
+    color: var(--text)
 }
 
 .floating {
@@ -215,7 +273,7 @@ main {
     font-size: 28px;
     background: var(--accent);
     border: none;
-    color: #001a36;
+    color: var(--primary-dark);
     box-shadow: 0 10px 18px rgba(0, 0, 0, .35);
     cursor: pointer;
     opacity: .72;
@@ -249,7 +307,7 @@ dialog::backdrop {
 .modal header {
     padding: 14px 16px;
     border-bottom: 1px solid var(--border);
-    background: #0b1222
+    background: var(--modal-header-bg)
 }
 
 .modal .content {
@@ -284,7 +342,7 @@ dialog {
     overflow: auto;
     scrollbar-width: thin;
     /* Firefox */
-    scrollbar-color: #243046 #0b1222;
+    scrollbar-color: var(--scrollbar-thumb) var(--input-bg);
 }
 
 .modal .content::-webkit-scrollbar {
@@ -293,13 +351,13 @@ dialog {
 }
 
 .modal .content::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #1e293b, #0f172a);
-    border: 2px solid #0b1222;
+    background: linear-gradient(180deg, var(--border), var(--bg));
+    border: 2px solid var(--input-bg);
     border-radius: 10px;
 }
 
 .modal .content::-webkit-scrollbar-track {
-    background: #0b1222;
+    background: var(--input-bg);
 }
 
 /* Make the two-column rows wrap fluidly */
@@ -317,10 +375,10 @@ dialog {
 textarea {
     width: 100%;
     min-height: 100px;
-    background: #0b1222;
+    background: var(--input-bg);
     border: 1px solid var(--border);
     border-radius: 10px;
-    color: #fff;
+    color: var(--text);
     padding: 10px;
     resize: vertical
 }
@@ -349,7 +407,7 @@ textarea {
     right: 0;
     max-height: 260px;
     overflow: auto;
-    background: #0b1222;
+    background: var(--dropdown-bg);
     border: 1px solid var(--border);
     border-radius: 10px;
     z-index: 30
@@ -358,7 +416,7 @@ textarea {
 .dropitem {
     padding: 10px 12px;
     cursor: pointer;
-    border-bottom: 1px solid #0e1628;
+    border-bottom: 1px solid var(--border);
     display: flex;
     justify-content: space-between;
     gap: 10px
@@ -370,7 +428,7 @@ textarea {
 
 .dropitem:hover,
 .dropitem.active {
-    background: #15213a
+    background: var(--dropdown-hover)
 }
 
 .actions {
@@ -379,7 +437,7 @@ textarea {
     justify-content: flex-end;
     padding: 12px 16px;
     border-top: 1px solid var(--border);
-    background: #0b1222
+    background: var(--modal-header-bg)
 }
 
 .hidden {
@@ -414,7 +472,7 @@ textarea {
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 10px;
-    background: #0b1222;
+    background: var(--input-bg);
     display: grid;
     gap: 10px;
 }
@@ -430,15 +488,23 @@ textarea {
     align-items: start;
 }
 .chat-bubble {
-    background: #121a2b;
+    background: var(--card);
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 10px 12px;
 }
-.chat-msg.user .chat-bubble { background: #0d1f35; border-color: #1e3a8a; }
-.chat-msg.assistant .chat-bubble { background: #1c2a40; border-color: #334155; }
+.chat-msg.user .chat-bubble { 
+    background: var(--chat-user-bg); 
+    border-color: var(--chat-user-border); 
+}
+.chat-msg.assistant .chat-bubble { 
+    background: var(--chat-assistant-bg); 
+    border-color: var(--chat-assistant-border); 
+}
 .chat-role {
-    font-size: 12px; color: #93c5fd; margin-top: 2px;
+    font-size: 12px; 
+    color: var(--accent); 
+    margin-top: 2px;
 }
 
 /* drag grid */
@@ -454,7 +520,7 @@ textarea {
     border: 1px dashed var(--border);
     border-radius: 12px;
     overflow: hidden;
-    background: #0b1222
+    background: var(--input-bg)
 }
 
 .dragitem img {
@@ -573,7 +639,8 @@ textarea {
     position: absolute;
     top: 16px;
     right: 16px;
-    transform: none
+    transform: none;
+    background: var(--button-bg);
 }
 
 .lbcounter {
@@ -581,7 +648,7 @@ textarea {
     bottom: 14px;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(17, 24, 39, .9);
+    background: var(--card);
     padding: 6px 10px;
     border-radius: 999px;
     border: 1px solid var(--border);
@@ -597,7 +664,7 @@ textarea {
     padding: 4px 10px;
     border: 1px solid var(--border);
     border-radius: 999px;
-    background: #0b1222;
+    background: var(--input-bg);
     cursor: pointer
 }
 
@@ -607,13 +674,13 @@ textarea {
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 8px;
-    background: #0b1222
+    background: var(--input-bg)
 }
 
 .linkbtn {
-    background: #0b1222;
+    background: var(--input-bg);
     border: 1px solid var(--border);
-    color: #93c5fd;
+    color: var(--accent);
     border-radius: 10px;
     padding: 6px 10px;
     cursor: pointer
@@ -625,7 +692,7 @@ textarea {
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 10px;
-    background: #0b1222
+    background: var(--input-bg)
 }
 
 .tagmgr-list {
@@ -642,15 +709,15 @@ textarea {
 
 .tagrow input[type=text],
 input[type="number"] {
-    background: #0b1222;
+    background: var(--input-bg);
     border: 1px solid var(--border);
-    color: #e5e7eb;
+    color: var(--text);
     padding: 6px 8px;
     border-radius: 10px
 }
 
 .tagrow .count {
-    color: #93c5fd;
+    color: var(--accent);
     font-size: 12px;
     text-align: right
 }
@@ -694,7 +761,7 @@ input[type="number"] {
 
 .calcell {
     border: 1px solid var(--border);
-    background: #0b1222;
+    background: var(--input-bg);
     border-radius: 10px;
     padding: 10px;
     min-height: 56px;
@@ -934,37 +1001,42 @@ input[type="number"] {
 
 /* 1) Let the top bar wrap nicely on narrow screens */
 @media (max-width: 720px) {
+    /* Only apply grid layout when hamburger is NOT visible */
+    @supports not (display: grid) {
+        .bar {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px 8px;
+            align-items: center;
+        }
+    }
+}
+
+/* When hamburger menu is active, keep bar as simple flex */
+@media (max-width: 820px) {
     .bar {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px 8px;
+        display: flex;
+        gap: 12px;
         align-items: center;
     }
-
-    .brand {
-        grid-column: 1 / -1;
+    
+    #hamburgerBtn,
+    #themeToggleBtn {
+        min-width: 44px;
+        width: 44px;
+        height: 44px;
+        padding: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
-
-    .spacer {
-        display: none;
-    }
-
-    /* stack filters neatly */
-    #categoryFilter,
-    #searchBox,
-    #filtersBtn,
-    #chooseDirBtn {
-        width: 100%;
-    }
-
-    /* move "Choose Folder" (or File menu if you add it) to full width */
 }
 
 /* 2) Feed grid: denser on large screens, flexible on phones */
 @media (max-width: 720px) {
     .floating .fab { opacity: .55; }
     .feed {
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
         gap: 12px;
     }
 
@@ -1069,16 +1141,49 @@ input[type="number"] {
     }
 }
 
-/* 7) Prevent header from overflowing on mid-width screens */
+/* 7) Compact header controls on mid-width screens */
 @media (min-width: 721px) and (max-width: 980px) {
     .bar {
-        display: grid;
-        grid-template-columns: auto 1fr auto auto auto;
         gap: 8px;
+    }
+    
+    .bar button,
+    .bar select {
+        padding: 6px 10px;
+        font-size: 13px;
     }
 
     #searchBox {
-        width: 100%;
+        min-width: 120px;
+        max-width: 180px;
+    }
+    
+    /* Show hamburger and hide Calendar, Recycle Bin, Chat buttons on mid-width screens */
+    #hamburgerBtn {
+        display: block !important;
+        min-width: 44px;
+        width: 44px;
+        height: 44px;
+        padding: 8px;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    #themeToggleBtn {
+        min-width: 44px;
+        width: 44px;
+        height: 44px;
+        padding: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    #calendarBtn,
+    #recycleBinBtn,
+    #chatBtn {
+        display: none;
     }
 }
 
@@ -1092,3 +1197,268 @@ input[type="number"] {
 .attachments a, .filelist a { color:#93c5fd; text-decoration:none; font-size:12px; line-height:1.25; word-break:break-word; }
 .attachments a:hover, .filelist a:hover { text-decoration:underline; }
 .attachments .more-indicator, .filelist .more-indicator { font-size:11px; color:var(--muted); }
+
+/* ===== Hamburger Menu & Theme Toggle ===== */
+#hamburgerBtn {
+    display: none;
+    font-size: 20px;
+    padding: 6px 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+}
+
+#themeToggleBtn {
+    padding: 6px 10px;
+    font-size: 18px;
+    background: transparent;
+    border: 1px solid var(--border);
+}
+
+/* Sync Status Indicator */
+.sync-status {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    white-space: nowrap;
+    transition: all 0.3s ease;
+}
+
+.sync-status.syncing {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.sync-status.syncing #syncIcon {
+    animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.sync-status.success {
+    color: var(--accent2);
+    border-color: var(--accent2);
+}
+
+.sync-status.error {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+#syncIcon {
+    display: inline-block;
+    font-size: 14px;
+}
+
+#syncText {
+    font-size: 12px;
+}
+
+.mobile-menu {
+    display: none;
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 280px;
+    height: 100vh;
+    background: var(--card);
+    border-left: 1px solid var(--border);
+    box-shadow: -4px 0 20px rgba(0,0,0,0.3);
+    z-index: 1000;
+    flex-direction: column;
+    padding: 16px;
+    gap: 8px;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+}
+
+.mobile-menu.open {
+    display: flex;
+    transform: translateX(0);
+}
+
+.mobile-menu-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.mobile-menu-header h3 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.mobile-menu-header button {
+    min-width: 32px;
+    width: 32px;
+    height: 32px;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+}
+
+.mobile-menu button:not(.mobile-menu-header button),
+.mobile-menu select,
+.mobile-menu input {
+    width: 100%;
+    text-align: left;
+    justify-content: flex-start;
+}
+
+.mobile-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 999;
+}
+
+.mobile-overlay.open {
+    display: block;
+}
+
+/* Show hamburger on small screens, hide regular buttons */
+@media (max-width: 820px) {
+    #hamburgerBtn {
+        display: block;
+    }
+    
+    /* Hide all controls except theme toggle */
+    .bar > button:not(#hamburgerBtn):not(#themeToggleBtn),
+    .bar > select,
+    .bar > input#searchBox {
+        display: none;
+    }
+}
+
+/* Between 721-820px: show category filter and search box, hide only action buttons */
+@media (min-width: 721px) and (max-width: 820px) {
+    #categoryFilter,
+    #searchBox {
+        display: block;
+    }
+    
+    #filtersBtn {
+        display: block;
+    }
+}
+
+/* Light mode adjustments */
+[data-theme="light"] button.primary {
+    color: #ffffff;
+    border-color: #2563eb;
+}
+
+[data-theme="light"] button.danger {
+    background: #fee2e2;
+    border-color: #fecaca;
+    color: #991b1b;
+}
+
+[data-theme="light"] .mobile-menu {
+    box-shadow: -4px 0 20px rgba(0,0,0,0.1);
+}
+
+[data-theme="light"] .lightbox {
+    background: var(--overlay);
+}
+
+[data-theme="light"] label[type="button"] {
+    color: var(--text);
+}
+
+/* Settings Modal */
+.settings-section {
+    margin-bottom: 2px;
+}
+
+.settings-section h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-top: 4px;
+    margin-bottom: 4px;
+    color: var(--text);
+}
+
+.settings-section .form-row {
+    margin-bottom: 12px;
+}
+
+.settings-section label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 4px;
+}
+
+.settings-section input[type="text"] {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+}
+
+.settings-section input[type="text"]:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+#serverUrlStatus {
+    padding: 8px;
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+#serverUrlStatus.success {
+    background: rgba(52, 211, 153, 0.1);
+    color: var(--accent2);
+    border: 1px solid var(--accent2);
+}
+
+#serverUrlStatus.error {
+    background: rgba(248, 113, 113, 0.1);
+    color: var(--danger);
+    border: 1px solid var(--danger);
+}
+
+#importExportStatus {
+    font-size: 12px;
+}
+
+#importExportStatus.success {
+    background: rgba(52, 211, 153, 0.1);
+    color: var(--accent2);
+    border: 1px solid var(--accent2);
+}
+
+#importExportStatus.error {
+    background: rgba(248, 113, 113, 0.1);
+    color: var(--danger);
+    border: 1px solid var(--danger);
+}
+
+#importExportStatus.info {
+    background: rgba(96, 165, 250, 0.1);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+}

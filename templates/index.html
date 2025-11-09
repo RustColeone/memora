@@ -28,8 +28,33 @@
         })();
     </script>
     <script>
+        // Server configuration
+        // If running on https:// - assume we're on the server (use relative URLs)
+        // If running on http:// - check for SERVER_URL setting, otherwise use relative URLs
         (function(){
-            var hasServer = location.protocol === 'http:' || location.protocol === 'https:';
+            var isHttps = location.protocol === 'https:';
+            var isHttp = location.protocol === 'http:';
+            
+            // Auto-detect server base URL
+            if (isHttps) {
+                // Running on HTTPS - we're on the server
+                window.API_BASE = '';
+            } else if (isHttp) {
+                // Running on HTTP - check for custom server URL
+                var serverUrl = localStorage.getItem('memo_server_url');
+                if (serverUrl && serverUrl.trim()) {
+                    // User specified a full server URL (e.g., "http://192.168.1.100:5050" or "https://example.com")
+                    window.API_BASE = serverUrl.trim();
+                } else {
+                    // No server URL specified - assume same origin
+                    window.API_BASE = '';
+                }
+            } else {
+                // File protocol or other - local mode
+                window.API_BASE = '';
+            }
+            
+            var hasServer = isHttps || isHttp;
             var STATIC_BASE = hasServer ? '/static/' : '../static/';
             var cssFiles = ['memo.css'];
             cssFiles.forEach(function(f){
@@ -53,11 +78,37 @@
             <input id="searchBox" placeholder="Search description / tags…" type="text" />
             <button id="filtersBtn" title="More filters">Filters</button>
             <button id="calendarBtn" title="Open calendar">Calendar</button>
-            <button id="chooseDirBtn" title="Choose a folder to save images &amp; memo.json"
-                data-hide-when-server>Choose Folder</button>
+            <button id="recycleBinBtn" title="Recycle Bin">🗑️ Bin</button>
+            <button id="settingsBtn" title="Settings">⚙️ Settings</button>
             <button id="chatBtn" title="Ask questions">Chat</button>
+            <div id="syncStatus" class="sync-status" title="Last synced: Never" style="display: none;">
+                <span id="syncIcon">☁️</span>
+                <span id="syncText">Not synced</span>
+            </div>
+            <button id="themeToggleBtn" title="Toggle theme">🌙</button>
+            <button id="hamburgerBtn" title="Menu">☰</button>
         </div>
     </header>
+    
+    <!-- Mobile Menu Overlay -->
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    
+    <!-- Mobile Menu -->
+    <div class="mobile-menu" id="mobileMenu">
+        <div class="mobile-menu-header">
+            <h3>Menu</h3>
+            <button id="mobileMenuClose">✕</button>
+        </div>
+        <button id="mobileChatBtn" title="Ask questions">Chat</button>
+        <button id="mobileFiltersBtn" title="More filters">Filters</button>
+        <button id="mobileCalendarBtn" title="Open calendar">Calendar</button>
+        <button id="mobileRecycleBinBtn" title="Recycle Bin">🗑️ Bin</button>
+        <button id="mobileSettingsBtn" title="Settings">⚙️ Settings</button>
+        <select id="mobileCategoryFilter">
+            <option value="__ALL__">All categories</option>
+        </select>
+        <input id="mobileSearchBox" placeholder="Search description / tags…" type="text" />
+    </div>
     <!-- Lightbox -->
     <div aria-hidden="true" class="lightbox" id="lightbox">
         <button class="lbbtn lbclose" id="lbClose">Close ✕</button>
@@ -241,11 +292,108 @@
         </div>
     </dialog>
 
+    <!-- Recycle Bin Dialog -->
+    <dialog id="recycleBinDlg">
+        <div class="modal">
+            <header>
+                <strong>Recycle Bin</strong>
+                <span class="muted" style="margin-left:10px;font-weight:normal">Items auto-delete after 30 days</span>
+            </header>
+            <div class="content" style="max-height:70vh;overflow-y:auto">
+                <div id="recycleBinFeed"></div>
+            </div>
+            <div class="actions">
+                <button id="emptyRecycleBin" class="danger">Empty All</button>
+                <span class="spacer"></span>
+                <button class="ghost" id="closeRecycleBin">Close</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Settings Dialog -->
+    <dialog id="settingsDlg">
+        <div class="modal">
+            <header>
+                <strong>⚙️ Settings</strong>
+            </header>
+            <div class="content" style="max-height:70vh;overflow-y:auto">
+                <!-- Server Sync Section -->
+                <div id="serverSyncSection" class="settings-section">
+                    <h3>🔄 Server Sync</h3>
+                    <p class="muted">Connect to a remote server to sync your data across devices.</p>
+                    <div class="form-row">
+                        <label for="serverUrlInput">Server URL:</label>
+                        <input type="text" id="serverUrlInput" placeholder="https://example.com or http://192.168.1.100:5050" 
+                               style="width:100%;padding:8px;margin-top:4px;" />
+                    </div>
+                    <div class="form-row" style="margin-top:8px;">
+                        <button id="saveServerUrl" class="primary">Save Server URL</button>
+                        <button id="clearServerUrl" class="ghost">Clear</button>
+                    </div>
+                    <div id="serverUrlStatus" style="font-size:12px;"></div>
+                </div>
+
+                <hr style="margin: 5px 0; border: none; border-top: 1px solid var(--border);">
+
+                <!-- Local Folder Storage Section -->
+                <div id="localFolderSection" class="settings-section">
+                    <h3>📁 Local Folder Storage</h3>
+                    <p class="muted">Choose a folder to save your memos and images locally on your device.</p>
+                    
+                    <div class="form-row" style="margin-top:12px;">
+                        <button id="chooseFolderBtn" class="primary">📂 Choose Folder</button>
+                        <p class="muted" style="font-size:11px;margin-top:4px;">
+                            Status: <span id="folderStatus">Not enabled</span>
+                        </p>
+                        <p class="muted" style="font-size:11px;margin-top:4px;">
+                            Requires Chrome/Edge desktop with File System Access API support.
+                        </p>
+                    </div>
+                </div>
+
+                <hr style="margin: 5px 0; border: none; border-top: 1px solid var(--border);">
+
+                <!-- Data Export/Import Section -->
+                <div class="settings-section">
+                    <h3>💾 Data Backup</h3>
+                    <p class="muted">Export or import all your data including entries, images, and attachments.</p>
+                    
+                    <div class="form-row" style="margin-top:12px;">
+                        <button id="exportDataBtn" class="primary">📦 Export All Data</button>
+                        <p class="muted" style="font-size:11px;margin-top:4px;">
+                            Downloads a .zip file with the same structure as the backend data/ folder.
+                        </p>
+                    </div>
+
+                    <div class="form-row" style="margin-top:16px;">
+                        <label for="importDataInput" class="primary" style="display:inline-block;padding:8px 16px;cursor:pointer;background:var(--primary);color:var(--bg);border-radius:6px;font-weight:600;">
+                            📥 Import Data
+                        </label>
+                        <input type="file" id="importDataInput" accept=".zip" style="display:none;" />
+                        <p class="muted" style="font-size:11px;margin-top:4px;">
+                            Upload a previously exported .zip file to restore your data.
+                        </p>
+                    </div>
+
+                    <div id="importExportStatus" style="margin-top:12px;padding:8px;border-radius:6px;display:none;"></div>
+                </div>
+
+            </div>
+            <div class="actions">
+                <button class="ghost" id="closeSettings">Close</button>
+            </div>
+        </div>
+    </dialog>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>
         (function(){
             var hasServer = location.protocol === 'http:' || location.protocol === 'https:';
             var STATIC_BASE = hasServer ? '/static/' : '../static/';
             var files = [
+                'memo-theme.js',
+                'memo-settings.js',
+                'memo-sync.js',
                 'memo-core.js',
                 'memo-variant-default.js',
                 'memo-filter.js',

@@ -21,17 +21,19 @@
     height: 56px;
     border-radius: 8px;
     border: 1px solid var(--border);
-    background: #0b1222;
+    background: var(--input-bg);
     display: inline-flex;
     align-items: center;
     justify-content: center;
     font-size: 10px;
     font-weight: 600;
     text-decoration: none;
-    color: #f1f5f9;
+    color: var(--text);
     letter-spacing: .5px;
 }
-.inline-thumbs .pdf-thumb:hover { background:#132036; }
+.inline-thumbs .pdf-thumb:hover { 
+    background: var(--button-bg);
+}
 
 /* Use table mode only when the feed says so */
 .feed[data-listmode="table"] {
@@ -58,12 +60,13 @@
 .listtable thead th {
     position: sticky;
     top: 0;
-    background: #0b1222;
+    background: var(--input-bg);
     border-bottom: 1px solid var(--border);
     text-align: left;
     font-weight: 600;
     padding: 12px 14px;
     z-index: 1;
+    color: var(--text);
 }
 
 .listtable tbody td {
@@ -83,7 +86,7 @@
 .totals-sticky.hidden { display: none; }
 
 .totals-sticky .inner {
-    background: linear-gradient(180deg, rgba(15,23,42,0), rgba(15,23,42,0.92));
+    background: linear-gradient(180deg, transparent, var(--header-bg));
     padding: 10px 0 8px;
     /* match main container width and side padding */
     width: 100%;
@@ -122,7 +125,8 @@
     border-top: 2px solid var(--border);
     padding: 12px 14px;
     font-weight: 600;
-    background: #0b1222;
+    background: var(--input-bg);
+    color: var(--text);
 }
 
 .listtable tfoot .totals-label {
