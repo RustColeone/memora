@@ -37,14 +37,31 @@
    ```
 
 **What happens in Server Mode:**
-- ✅ **Sync enabled** - memo-sync.js initializes and runs bidirectional sync
+- ⚠️ **Sync behavior depends on API_BASE:**
+  - **If API_BASE is empty** (accessing server directly): Sync disabled, no sync UI shown
+  - **If API_BASE has URL** (remote server configured): Sync enabled, sync UI shown
 - ✅ **Server API calls** - All CRUD operations go through ServerAPI (create/update/delete)
 - ✅ **File uploads** - Images/attachments uploaded to `/api/upload` endpoint
 - ✅ **Asset URLs** - Server returns `/uploads/YYYY-MM-DD/HHMM_filename.ext` paths
-- ✅ **Blob conversion** - SyncManager downloads server URLs and converts to blob URLs for display
+- ✅ **Blob conversion** - SyncManager downloads server URLs and converts to blob URLs for display (only when syncing)
 - ❌ **File System Access API** - Disabled (not needed, server stores files)
-- ✅ **Settings panel** - Server sync config is disabled/dimmed (already on server)
+- ✅ **Settings panel** - Server sync config is disabled/dimmed when accessing server directly
 - ✅ **Local folder selector** - Hidden (lines 72-76 memo-settings.js)
+
+**Two scenarios:**
+1. **Direct server access** (e.g., `https://myapp.com` or `http://localhost:5000`):
+   - User opens app directly from server
+   - `API_BASE = ''` (same origin)
+   - ServerAPI calls work (relative URLs)
+   - Sync is disabled (would sync with itself - pointless)
+   - This is the **primary use case** for server deployment
+   
+2. **Remote server configured** (e.g., Local browser with `memo_server_url` set to `http://192.168.1.100:5000`):
+   - User opens app from `file://` or different origin
+   - `API_BASE = 'http://192.168.1.100:5000'` (configured URL)
+   - ServerAPI calls work (full URLs)
+   - Sync is enabled (syncing with remote server - useful)
+   - This is the **multi-device sync** use case
 
 ---
 
@@ -115,18 +132,38 @@
 
 ### memo-sync.js Behavior
 
-**Entry check** (line 80):
+**Entry check** (line 80-92):
 ```javascript
-if (typeof window.MODE === 'undefined' || window.MODE !== 'server') {
-  console.log('⏭️  Skipping sync - not in server mode');
+// Only sync when we have a remote server configured
+// Don't sync if we're running directly on the server (API_BASE is empty)
+const hasRemoteServer = window.API_BASE && window.API_BASE.trim() !== '';
+if (!hasRemoteServer) {
+  // We're either in local mode or accessing the server directly (same origin)
+  // In both cases, no sync is needed
+  return;
+}
+
+// Also check that we're not in pure local mode
+if (typeof window.MODE === 'undefined' || window.MODE === 'local') {
   return;
 }
 ```
 
 **Current behavior:**
-- ✅ **Server Mode**: Full bidirectional sync enabled
-- ❌ **Local Mode**: Sync completely disabled
-- ❌ **Capacitor Mode**: Sync completely disabled
+- ✅ **Server Mode (accessing directly)**: Sync disabled (API_BASE is empty, syncing with yourself is pointless)
+- ✅ **Server Mode (remote server configured)**: Sync enabled (API_BASE has URL, syncing with remote server)
+- ❌ **Local Mode**: Sync disabled (even with server URL configured, MODE is 'local')
+- ❌ **Capacitor Mode**: Sync disabled (even with server URL configured, MODE is 'capacitor')
+
+**Sync activation logic:**
+- Sync **ONLY** runs when:
+  1. `window.API_BASE` is not empty (remote server configured)
+  2. AND `window.MODE` is 'server' (detected server connection)
+
+This means sync is **ONLY active** when:
+- Running in local browser with remote server URL configured
+- The `/api/config` endpoint responds with `{server: true}`
+- This creates a "client-server" relationship where sync makes sense
 
 **Sync features (Server Mode only):**
 1. **Hash-based comparison** - Detects content changes, skips sync if identical

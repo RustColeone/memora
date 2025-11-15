@@ -15,6 +15,15 @@ const SyncManager = {
    * Initialize the sync manager
    */
   async init() {
+    // Only initialize sync if we have a remote server configured
+    const hasRemoteServer = window.API_BASE && window.API_BASE.trim() !== '';
+    if (!hasRemoteServer) {
+      console.log('📡 Sync Manager: No remote server configured, sync disabled');
+      return;
+    }
+    
+    console.log('📡 Sync Manager: Initializing with remote server:', window.API_BASE);
+    
     // Clear any existing interval to avoid duplicates
     if (this.syncState.autoSyncInterval) {
       clearInterval(this.syncState.autoSyncInterval);
@@ -76,8 +85,17 @@ const SyncManager = {
       return;
     }
     
-    // Only sync when in server mode
-    if (typeof window.MODE === 'undefined' || window.MODE !== 'server') {
+    // Only sync when we have a remote server configured
+    // Don't sync if we're running directly on the server (API_BASE is empty)
+    const hasRemoteServer = window.API_BASE && window.API_BASE.trim() !== '';
+    if (!hasRemoteServer) {
+      // We're either in local mode or accessing the server directly (same origin)
+      // In both cases, no sync is needed
+      return;
+    }
+    
+    // Also check that we're not in pure local mode
+    if (typeof window.MODE === 'undefined' || window.MODE === 'local') {
       return;
     }
     

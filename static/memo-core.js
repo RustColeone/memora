@@ -1513,9 +1513,13 @@ async function coreInit() {
     settings.fsEnabled = false;
     if (els.fsStatus) els.fsStatus.textContent = 'disabled';
     
-    // Show sync status indicator
+    // Show sync status indicator ONLY if we have a remote server configured
+    // Don't show it if we're accessing the server directly (API_BASE is empty)
+    const hasRemoteServer = API_BASE && API_BASE.trim() !== '';
     const syncStatusEl = document.getElementById('syncStatus');
-    if (syncStatusEl) syncStatusEl.style.display = 'flex';
+    if (syncStatusEl && hasRemoteServer) {
+      syncStatusEl.style.display = 'flex';
+    }
 
     try {
       const memos = await ServerAPI.list();
