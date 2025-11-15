@@ -127,6 +127,7 @@ const CHAT_KEY = (MEMO_VARIANT === 'finance') ? 'chat_finance_v1' : 'chat_defaul
 
 let MODE = 'detecting'; // 'server' | 'local' | 'capacitor'
 window.MODE = MODE; // Make MODE accessible globally for sync manager
+window.MEMO_VARIANT = MEMO_VARIANT; // Make MEMO_VARIANT accessible globally
 let db = ({ entries: [] });
 let settings = ({ categories: ['Uncategorized'], tags: [], tagCounts: {}, fsEnabled: false, memoDirHandle: undefined });
 

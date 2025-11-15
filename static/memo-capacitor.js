@@ -31,6 +31,10 @@
 
 			// JS (sequential)
 			var files = [
+				'memo-debug.js',
+				'memo-theme.js',
+				'memo-settings.js',
+				'memo-sync.js',
 				'memo-core.js',
 				variant === 'finance' ? 'memo-variant-finance.js' : 'memo-variant-default.js',
 				'memo-filter.js',

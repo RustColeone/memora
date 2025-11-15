@@ -1200,7 +1200,6 @@ input[type="number"] {
 
 /* ===== Hamburger Menu & Theme Toggle ===== */
 #hamburgerBtn {
-    display: none;
     font-size: 20px;
     padding: 6px 10px;
     background: transparent;
@@ -1333,17 +1332,18 @@ input[type="number"] {
     display: block;
 }
 
-/* Show hamburger on small screens, hide regular buttons */
+/* Hide controls on small screens (except hamburger, theme, and sync) */
 @media (max-width: 820px) {
-    #hamburgerBtn {
-        display: block;
-    }
-    
-    /* Hide all controls except theme toggle */
+    /* Hide all controls except hamburger, theme toggle, and sync status */
     .bar > button:not(#hamburgerBtn):not(#themeToggleBtn),
     .bar > select,
     .bar > input#searchBox {
         display: none;
+    }
+    
+    /* Keep sync status visible if it's active */
+    .sync-status {
+        display: flex;
     }
 }
 

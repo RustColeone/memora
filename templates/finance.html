@@ -78,7 +78,6 @@
             <button id="filtersBtn" title="More filters">Filters</button>
             <button id="calendarBtn" title="Open calendar">Calendar</button>
             <button id="recycleBinBtn" title="Recycle Bin">🗑️ Bin</button>
-            <button id="settingsBtn" title="Settings">⚙️ Settings</button>
             <button id="chatBtn" title="Ask questions">Chat</button>
             <div id="syncStatus" class="sync-status" title="Last synced: Never" style="display: none;">
                 <span id="syncIcon">☁️</span>
@@ -103,6 +102,7 @@
         <button id="mobileCalendarBtn" title="Open calendar">Calendar</button>
         <button id="mobileRecycleBinBtn" title="Recycle Bin">🗑️ Bin</button>
         <button id="mobileSettingsBtn" title="Settings">⚙️ Settings</button>
+        <button id="mobileDebugLogBtn" title="Debug Log">🐛 Debug Log</button>
         <select id="mobileCategoryFilter">
             <option value="__ALL__">All categories</option>
         </select>
@@ -406,12 +406,32 @@
         </div>
     </dialog>
 
+    <!-- Debug Log Dialog -->
+    <dialog id="debugLogDlg">
+        <div class="modal">
+            <header>
+                <strong>🐛 Debug Log</strong>
+            </header>
+            <div class="content" style="max-height:70vh;overflow-y:auto">
+                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                    <button id="clearDebugLog" class="ghost">Clear Log</button>
+                    <button id="copyDebugLog" class="ghost">Copy to Clipboard</button>
+                </div>
+                <pre id="debugLogContent" style="background:var(--input-bg);padding:12px;border-radius:6px;font-size:11px;line-height:1.4;max-height:500px;overflow-y:auto;font-family:monospace;white-space:pre-wrap;word-break:break-all;"></pre>
+            </div>
+            <div class="actions">
+                <button class="ghost" id="closeDebugLog">Close</button>
+            </div>
+        </div>
+    </dialog>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>
         (function(){
             var hasServer = location.protocol === 'http:' || location.protocol === 'https:';
             var STATIC_BASE = hasServer ? '/static/' : '../static/';
             var files = [
+                'memo-debug.js',
                 'memo-theme.js',
                 'memo-settings.js',
                 'memo-sync.js',

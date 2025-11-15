@@ -77,6 +77,14 @@
       }
       
       settingsDlg.showModal();
+      
+      // Close mobile menu if open
+      const mobileMenu = document.getElementById('mobileMenu');
+      const mobileOverlay = document.getElementById('mobileOverlay');
+      if (mobileMenu && mobileMenu.classList.contains('open')) {
+        mobileMenu.classList.remove('open');
+        if (mobileOverlay) mobileOverlay.classList.remove('open');
+      }
     }
 
     // Close settings dialog
