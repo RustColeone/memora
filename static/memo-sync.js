@@ -123,6 +123,9 @@ const SyncManager = {
       this.updateSyncUI('success', 'Synced');
     } catch (err) {
       console.error('Sync failed:', err);
+      console.error('   Error type:', err?.constructor?.name);
+      console.error('   Error message:', err?.message);
+      console.error('   Error stack:', err?.stack);
       this.updateSyncUI('error', 'Sync failed');
     } finally {
       this.syncState.isSyncing = false;
@@ -348,18 +351,30 @@ const SyncManager = {
     const compareUrl = `${apiBase}/api/sync/compare?variant=${variant}`;
     console.log('📡 Push Sync: Sending summary to server for comparison...');
     
-    const compareResp = await fetch(compareUrl, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        entries: localSummary,
-        deleted: localDeleted
-      })
-    });
+    let compareResp;
+    try {
+      compareResp = await fetch(compareUrl, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          entries: localSummary,
+          deleted: localDeleted
+        })
+      });
+    } catch (fetchErr) {
+      console.error('❌ Push Sync: Network error during compare:', fetchErr);
+      console.error('   URL:', compareUrl);
+      console.error('   Error type:', fetchErr.constructor.name);
+      console.error('   Error message:', fetchErr.message);
+      console.error('   Error stack:', fetchErr.stack);
+      throw new Error(`Network error: ${fetchErr.message}`);
+    }
     
     if (!compareResp.ok) {
+      const errText = await compareResp.text();
       console.error('❌ Push Sync: Compare failed:', compareResp.status, compareResp.statusText);
-      throw new Error(`Compare failed: ${compareResp.status} ${compareResp.statusText}`);
+      console.error('   Response body:', errText);
+      throw new Error(`Compare failed: ${compareResp.status} ${compareResp.statusText} - ${errText}`);
     }
     
     const comparison = await compareResp.json();

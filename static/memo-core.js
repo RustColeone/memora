@@ -615,9 +615,17 @@ const CapFS = (function(){
   }
   async function readEntries(){
     const data = await readJSON(dataFilePath());
+    // Support both formats: direct array (server format) or {entries: []} wrapper
+    if (Array.isArray(data)) {
+      return { entries: data };
+    }
     return data && data.entries ? data : { entries: [] };
   }
-  async function writeEntries(data){ await writeJSON(dataFilePath(), data || { entries: [] }); }
+  async function writeEntries(data){
+    // Write as direct array to match server format (not {entries: []})
+    const entries = data && Array.isArray(data.entries) ? data.entries : [];
+    await writeJSON(dataFilePath(), entries);
+  }
   async function readHash(){ return (await readJSON(HASH_PATH)) || {}; }
   async function writeHash(obj){ await writeJSON(HASH_PATH, obj || {}); }
   async function fileExists(path){
