@@ -19,6 +19,10 @@ dist/
 data/
 uploads/
 
+# Allow static/index.html for Capacitor app
+!static/index.html
+!static/finance.html
+
 # IDE and OS files
 .vscode/
 .idea/

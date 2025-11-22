@@ -331,12 +331,47 @@
             }
 
             // Fetch the file
-            const response = await fetch(fileUrl);
-            if (!response.ok) {
-              continue;
+            let fetchUrl = fileUrl;
+            // If relative URL and we have API_BASE, prepend it
+            if (fetchUrl.startsWith('/') && window.API_BASE) {
+                fetchUrl = window.API_BASE.replace(/\/$/, '') + fetchUrl;
             }
 
-            const blob = await response.blob();
+            let blob;
+            // Try native fetch for Capacitor
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) {
+                 try {
+                    const resp = await window.Capacitor.Plugins.CapacitorHttp.get({
+                        url: fetchUrl,
+                        responseType: 'blob'
+                    });
+                    if (resp.status >= 200 && resp.status < 300) {
+                        if (typeof resp.data === 'string') {
+                             // Convert base64 to blob
+                             const byteCharacters = atob(resp.data);
+                             const byteNumbers = new Array(byteCharacters.length);
+                             for (let i = 0; i < byteCharacters.length; i++) {
+                                 byteNumbers[i] = byteCharacters.charCodeAt(i);
+                             }
+                             const byteArray = new Uint8Array(byteNumbers);
+                             blob = new Blob([byteArray]);
+                        } else {
+                             blob = resp.data;
+                        }
+                    }
+                 } catch(e) { 
+                     console.warn('Native fetch failed for export, falling back', e);
+                 }
+            }
+
+            if (!blob) {
+                const response = await fetch(fetchUrl);
+                if (!response.ok) {
+                  continue;
+                }
+                blob = await response.blob();
+            }
+
             uploadsFolder.file(zipPath.replace('uploads/', ''), blob);
             
             downloadedCount++;

@@ -1,0 +1,22 @@
+{
+  "appId": "com.memosystem.app",
+  "appName": "Memo System",
+  "webDir": "static",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": [
+      "*"
+    ],
+    "cleartext": true
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  }
+}

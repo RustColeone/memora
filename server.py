@@ -60,8 +60,17 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB upload cap
 def add_cors_headers(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    # Allow ALL headers to avoid preflight issues
+    response.headers['Access-Control-Allow-Headers'] = '*'
     return response
+
+# Handle CORS preflight requests explicitly
+@app.before_request
+def handle_preflight():
+    # Log request for debugging
+    print(f"📨 {request.method} {request.path} from {request.remote_addr}")
+    if request.method == "OPTIONS":
+        return jsonify({'status': 'OK'})
 
 # Ensure the data and upload folders exist
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -855,15 +864,46 @@ def upload_file():
        Handles file uploads; stores in uploads/YYYY-MM-DD/ and returns that URL.
        Also does de-duplication (SHA-256).
        Stores/reuses under uploads/_blobs/sha256/<hash><ext>, returns that URL.
+       Supports multipart/form-data (standard) and JSON base64 (Capacitor workaround).
     """
 
     if not USE_SERVER_BACKEND:
         return jsonify({"message": "Server backend is disabled."}), 400
-    if 'file' not in request.files:
-        return jsonify({"message": "No file part"}), 400
-    file = request.files['file']
+    
+    file = None
+    
+    # Check for JSON base64 upload (Capacitor workaround)
+    if request.is_json:
+        data = request.get_json(silent=True) or {}
+        if 'file' in data and 'filename' in data:
+            import base64
+            from io import BytesIO
+            from werkzeug.datastructures import FileStorage
+            
+            try:
+                # Handle data URI scheme if present (e.g. "data:image/png;base64,....")
+                b64_str = data['file']
+                if ',' in b64_str:
+                    b64_str = b64_str.split(',', 1)[1]
+                    
+                file_data = base64.b64decode(b64_str)
+                filename = data['filename']
+                # Create a FileStorage object to reuse existing logic
+                file = FileStorage(
+                    stream=BytesIO(file_data),
+                    filename=filename,
+                    content_type=data.get('type', 'application/octet-stream')
+                )
+            except Exception as e:
+                print(f"❌ Upload error (base64): {e}")
+                return jsonify({"message": f"Invalid base64 data: {str(e)}"}), 400
+    
+    # Check for standard multipart upload
+    if file is None and 'file' in request.files:
+        file = request.files['file']
+
     if not file or file.filename == '':
-        return jsonify({"message": "No selected file"}), 400
+        return jsonify({"message": "No file part or selected file"}), 400
     
     is_duplicate, file_hash, rec = is_file_in_hashbook(file)
     if is_duplicate:

@@ -142,16 +142,38 @@ const SyncManager = {
     apiBase = apiBase.replace(/\/$/, '');
     const url = `${apiBase}/api/sync?since=${this.syncState.lastSyncTime}&variant=${variant}`;
     
-    const resp = await fetch(url, {
-      method: 'GET',
-      cache: 'no-store'
-    });
+    let data;
     
-    if (!resp.ok) {
-      throw new Error(`Pull failed: ${resp.status} ${resp.statusText}`);
+    try {
+      // Check if we should use native CapacitorHttp directly
+      if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) {
+        console.log('🔌 Using native CapacitorHttp for pull...');
+        const response = await window.Capacitor.Plugins.CapacitorHttp.get({
+          url: url
+        });
+        
+        if (response.status < 200 || response.status >= 300) {
+          throw new Error(`Pull failed: ${response.status}`);
+        }
+        
+        data = response.data;
+      } else {
+        // Fallback to standard fetch
+        const resp = await fetch(url, {
+          method: 'GET',
+          cache: 'no-store'
+        });
+        
+        if (!resp.ok) {
+          throw new Error(`Pull failed: ${resp.status} ${resp.statusText}`);
+        }
+        
+        data = await resp.json();
+      }
+    } catch (err) {
+      console.error('❌ Pull Sync: Network error:', err);
+      throw err;
     }
-    
-    const data = await resp.json();
     
     if (!data || !Array.isArray(data.entries)) {
       throw new Error('Invalid server response');
@@ -353,14 +375,37 @@ const SyncManager = {
     
     let compareResp;
     try {
-      compareResp = await fetch(compareUrl, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          entries: localSummary,
-          deleted: localDeleted
-        })
-      });
+      // Check if we should use native CapacitorHttp directly (bypass fetch patch issues)
+      if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) {
+        console.log('🔌 Using native CapacitorHttp for sync...');
+        const response = await window.Capacitor.Plugins.CapacitorHttp.post({
+          url: compareUrl,
+          headers: {'Content-Type': 'application/json'},
+          data: {
+            entries: localSummary,
+            deleted: localDeleted
+          }
+        });
+        
+        // Normalize response to match fetch API
+        compareResp = {
+          ok: response.status >= 200 && response.status < 300,
+          status: response.status,
+          statusText: response.status >= 200 && response.status < 300 ? 'OK' : 'Error',
+          json: async () => response.data,
+          text: async () => typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
+        };
+      } else {
+        // Fallback to standard fetch
+        compareResp = await fetch(compareUrl, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            entries: localSummary,
+            deleted: localDeleted
+          })
+        });
+      }
     } catch (fetchErr) {
       console.error('❌ Push Sync: Network error during compare:', fetchErr);
       console.error('   URL:', compareUrl);
@@ -463,16 +508,41 @@ const SyncManager = {
             const file = await fileHandle.getFile();
             
             // Upload to server (server will check hashbook and deduplicate)
-            const formData = new FormData();
-            formData.append('file', file, filename);
-            
             let apiBase = window.API_BASE || '';
             apiBase = apiBase.replace(/\/$/, '');
-            
-            const uploadResp = await fetch(`${apiBase}/api/upload`, {
-              method: 'POST',
-              body: formData
-            });
+            const uploadUrl = `${apiBase}/api/upload`;
+            let uploadResp;
+
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) {
+                try {
+                    const base64Data = await this.fileToBase64(file);
+                    const response = await window.Capacitor.Plugins.CapacitorHttp.post({
+                        url: uploadUrl,
+                        headers: { 'Content-Type': 'application/json' },
+                        data: {
+                            file: base64Data,
+                            filename: filename,
+                            type: file.type || 'application/octet-stream'
+                        }
+                    });
+                    uploadResp = {
+                        ok: response.status >= 200 && response.status < 300,
+                        status: response.status,
+                        json: async () => response.data
+                    };
+                } catch (e) {
+                    console.error(`   ❌ Native upload error:`, e);
+                    uploadResp = { ok: false, status: 0 };
+                }
+            } else {
+                const formData = new FormData();
+                formData.append('file', file, filename);
+                
+                uploadResp = await fetch(uploadUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+            }
             
             if (uploadResp.ok) {
               const result = await uploadResp.json();
@@ -515,16 +585,41 @@ const SyncManager = {
               const file = await fileHandle.getFile();
               
               // Upload to server (server will check hashbook and deduplicate)
-              const formData = new FormData();
-              formData.append('file', file, filename);
-              
               let apiBase = window.API_BASE || '';
               apiBase = apiBase.replace(/\/$/, '');
-              
-              const uploadResp = await fetch(`${apiBase}/api/upload`, {
-                method: 'POST',
-                body: formData
-              });
+              const uploadUrl = `${apiBase}/api/upload`;
+              let uploadResp;
+
+              if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) {
+                  try {
+                      const base64Data = await this.fileToBase64(file);
+                      const response = await window.Capacitor.Plugins.CapacitorHttp.post({
+                          url: uploadUrl,
+                          headers: { 'Content-Type': 'application/json' },
+                          data: {
+                              file: base64Data,
+                              filename: filename,
+                              type: file.type || 'application/octet-stream'
+                          }
+                      });
+                      uploadResp = {
+                          ok: response.status >= 200 && response.status < 300,
+                          status: response.status,
+                          json: async () => response.data
+                      };
+                  } catch (e) {
+                      console.error(`   ❌ Native upload error:`, e);
+                      uploadResp = { ok: false, status: 0 };
+                  }
+              } else {
+                  const formData = new FormData();
+                  formData.append('file', file, filename);
+                  
+                  uploadResp = await fetch(uploadUrl, {
+                      method: 'POST',
+                      body: formData
+                  });
+              }
               
               if (uploadResp.ok) {
                 const result = await uploadResp.json();
@@ -561,14 +656,38 @@ const SyncManager = {
     console.log('📡 Push Sync: Sending formatted entries to server via POST /api/sync...');
     console.log('   Entries:', formattedEntries.length, 'Deleted:', toDelete.length);
     
-    const resp = await fetch(pushUrl, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        entries: formattedEntries,
-        deleted: toDelete
-      })
-    });
+    let resp;
+    try {
+      if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) {
+        const response = await window.Capacitor.Plugins.CapacitorHttp.post({
+          url: pushUrl,
+          headers: {'Content-Type': 'application/json'},
+          data: {
+            entries: formattedEntries,
+            deleted: toDelete
+          }
+        });
+        
+        resp = {
+          ok: response.status >= 200 && response.status < 300,
+          status: response.status,
+          statusText: response.status >= 200 && response.status < 300 ? 'OK' : 'Error',
+          json: async () => response.data
+        };
+      } else {
+        resp = await fetch(pushUrl, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            entries: formattedEntries,
+            deleted: toDelete
+          })
+        });
+      }
+    } catch (e) {
+      console.error('❌ Push Sync: Network error:', e);
+      throw new Error(`Push failed: ${e.message}`);
+    }
     
     if (!resp.ok) {
       console.error('❌ Push Sync: Failed:', resp.status, resp.statusText);
@@ -729,6 +848,38 @@ const SyncManager = {
         return false;
       }
     };
+
+    // Helper to download via CapacitorHttp or fetch
+    const downloadBlob = async (url) => {
+      try {
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) {
+          const response = await window.Capacitor.Plugins.CapacitorHttp.get({
+            url: url,
+            responseType: 'blob'
+          });
+          
+          if (response.status >= 200 && response.status < 300) {
+            if (typeof response.data === 'string') {
+              // Assume base64
+              return this.base64ToBlob(response.data);
+            } else {
+              return response.data;
+            }
+          }
+        }
+      } catch (e) {
+        // Fallback to fetch
+      }
+      
+      // Fallback
+      try {
+        const response = await fetch(url);
+        if (!response.ok) return null;
+        return await response.blob();
+      } catch (e) {
+        return null;
+      }
+    };
     
     // Download images and save to local folder
     if (entry.images && entry.images.length > 0) {
@@ -751,13 +902,8 @@ const SyncManager = {
           // Construct full URL for download
           const fullUrl = `${apiBase}${imgUrl}`;
           
-          // Fetch the image
-          const response = await fetch(fullUrl);
-          if (!response.ok) {
-            continue;
-          }
-          
-          const blob = await response.blob();
+          const blob = await downloadBlob(fullUrl);
+          if (!blob) continue;
           
           // Write to local folder with same structure (no /uploads prefix)
           const dateDir = await getOrCreateDir(settings.memoDirHandle, dateFolder);
@@ -799,13 +945,8 @@ const SyncManager = {
           // Construct full URL for download
           const fullUrl = `${apiBase}${attUrl}`;
           
-          // Fetch the attachment
-          const response = await fetch(fullUrl);
-          if (!response.ok) {
-            continue;
-          }
-          
-          const blob = await response.blob();
+          const blob = await downloadBlob(fullUrl);
+          if (!blob) continue;
           
           // Write to local folder with same structure (no /uploads prefix)
           const dateDir = await getOrCreateDir(settings.memoDirHandle, dateFolder);
@@ -824,6 +965,30 @@ const SyncManager = {
     }
     
     return entry;
+  },
+  
+  base64ToBlob(base64, mimeType = 'application/octet-stream') {
+    try {
+      const byteCharacters = atob(base64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      return new Blob([byteArray], {type: mimeType});
+    } catch (e) {
+      console.error('Failed to convert base64 to blob:', e);
+      return null;
+    }
+  },
+
+  fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = error => reject(error);
+    });
   },
   
   normalizeServerEntry(serverEntry) {

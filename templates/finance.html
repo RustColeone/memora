@@ -29,29 +29,47 @@
     </script>
     <script>
         // Server configuration
-        // If running on https:// - assume we're on the server (use relative URLs)
-        // If running on http:// - check for SERVER_URL setting, otherwise use relative URLs
+        // Auto-detect environment and set API_BASE
         (function(){
-            var isHttps = location.protocol === 'https:';
-            var isHttp = location.protocol === 'http:';
+            var protocol = location.protocol;
+            var isHttps = protocol === 'https:';
+            var isHttp = protocol === 'http:';
+            var isCapacitor = protocol === 'capacitor:' || protocol === 'ionic:';
+            
+            console.log('🔧 Protocol detection:', protocol, '| isCapacitor:', isCapacitor);
             
             // Auto-detect server base URL
             if (isHttps) {
                 // Running on HTTPS - we're on the server
                 window.API_BASE = '';
+                console.log('🌐 HTTPS mode: API_BASE = (empty - same origin)');
             } else if (isHttp) {
                 // Running on HTTP - check for custom server URL
                 var serverUrl = localStorage.getItem('memo_server_url');
                 if (serverUrl && serverUrl.trim()) {
                     // User specified a full server URL (e.g., "http://192.168.1.100:5050" or "https://example.com")
                     window.API_BASE = serverUrl.trim();
+                    console.log('🌐 HTTP mode with custom server: API_BASE =', window.API_BASE);
                 } else {
                     // No server URL specified - assume same origin
                     window.API_BASE = '';
+                    console.log('🌐 HTTP mode: API_BASE = (empty - same origin)');
+                }
+            } else if (isCapacitor) {
+                // Running in Capacitor app - MUST have server URL
+                var serverUrl = localStorage.getItem('memo_server_url');
+                if (serverUrl && serverUrl.trim()) {
+                    window.API_BASE = serverUrl.trim();
+                    console.log('📱 Capacitor mode: API_BASE =', window.API_BASE);
+                } else {
+                    // No server configured yet - will prompt user in app
+                    window.API_BASE = '';
+                    console.log('⚠️  Capacitor mode: No server URL configured yet');
                 }
             } else {
                 // File protocol or other - local mode
                 window.API_BASE = '';
+                console.log('📁 Local/File mode: API_BASE = (empty)');
             }
             
             var hasServer = isHttps || isHttp;

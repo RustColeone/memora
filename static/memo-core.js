@@ -142,9 +142,68 @@ let activeFilters = { dateFrom: null, dateTo: null, cats: new Set(), tags: new S
 // =======================
 // Server detection & API
 // =======================
+
+// Helper for native HTTP (Capacitor) to bypass CORS/Cleartext issues
+async function nativeFetch(url, options = {}) {
+  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) {
+    try {
+      const method = (options.method || 'GET').toUpperCase();
+      const headers = options.headers || {};
+      
+      // If sending JSON, ensure header is set (if not already)
+      if (!headers['Content-Type'] && method !== 'GET' && options.body && typeof options.body === 'string' && options.body.trim().startsWith('{')) {
+         headers['Content-Type'] = 'application/json';
+      }
+
+      let data = options.body;
+      // If sending JSON string, parse it back to object for Capacitor (it handles serialization)
+      if (headers['Content-Type'] && headers['Content-Type'].includes('json') && typeof data === 'string') {
+        try { data = JSON.parse(data); } catch(e){}
+      }
+      
+      // Skip FormData for now (complex to polyfill correctly with boundary)
+      if (data instanceof FormData) {
+         return fetch(url, options);
+      }
+
+      const response = await window.Capacitor.Plugins.CapacitorHttp.request({
+        url: url,
+        method: method,
+        headers: headers,
+        data: data
+      });
+      
+      return {
+        ok: response.status >= 200 && response.status < 300,
+        status: response.status,
+        statusText: response.status >= 200 && response.status < 300 ? 'OK' : 'Error',
+        json: async () => response.data,
+        text: async () => typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
+      };
+    } catch (e) {
+      console.error('Native fetch failed', e);
+      // Fallback to fetch if native fails (though unlikely to help if blocked)
+      return fetch(url, options);
+    }
+  }
+  return fetch(url, options);
+}
+
+// Expose nativeFetch globally for other modules
+window.nativeFetch = nativeFetch;
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
+  });
+}
+
 async function detectMode() {
   try {
-    const r = await fetch(`${API_BASE}/api/config`, { cache: 'no-store' });
+    const r = await nativeFetch(`${API_BASE}/api/config`, { cache: 'no-store' });
     if (r.ok) {
       const j = await r.json();
       MODE = (j && j.server) ? 'server' : 'local';
@@ -166,13 +225,13 @@ async function detectMode() {
 const ServerAPI = {
   async list() {
     const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
-    const r = await fetch(`${API_BASE}/api/memos${qp}`);
+    const r = await nativeFetch(`${API_BASE}/api/memos${qp}`);
     if (!r.ok) throw new Error('Failed to fetch memos');
     return r.json();
   },
   async create(memo) {
     const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
-    const r = await fetch(`${API_BASE}/api/memos${qp}`, {
+    const r = await nativeFetch(`${API_BASE}/api/memos${qp}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(memo)
@@ -182,7 +241,7 @@ const ServerAPI = {
   },
   async update(id, patch) {
     const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
-    const r = await fetch(`${API_BASE}/api/memos/${encodeURIComponent(id)}${qp}`, {
+    const r = await nativeFetch(`${API_BASE}/api/memos/${encodeURIComponent(id)}${qp}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch)
@@ -192,17 +251,17 @@ const ServerAPI = {
   },
   async remove(id) {
     const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
-    const r = await fetch(`${API_BASE}/api/memos/${encodeURIComponent(id)}${qp}`, { method: 'DELETE' });
+    const r = await nativeFetch(`${API_BASE}/api/memos/${encodeURIComponent(id)}${qp}`, { method: 'DELETE' });
     if (!r.ok) throw new Error('Failed to delete memo');
   },
   async removePermanent(id) {
     const qp = MEMO_VARIANT === 'default' ? '?permanent=true' : `?variant=${encodeURIComponent(MEMO_VARIANT)}&permanent=true`;
-    const r = await fetch(`${API_BASE}/api/memos/${encodeURIComponent(id)}${qp}`, { method: 'DELETE' });
+    const r = await nativeFetch(`${API_BASE}/api/memos/${encodeURIComponent(id)}${qp}`, { method: 'DELETE' });
     if (!r.ok) throw new Error('Failed to permanently delete memo');
   },
   async restore(id) {
     const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
-    const r = await fetch(`${API_BASE}/api/memos/${encodeURIComponent(id)}/restore${qp}`, {
+    const r = await nativeFetch(`${API_BASE}/api/memos/${encodeURIComponent(id)}/restore${qp}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -210,8 +269,29 @@ const ServerAPI = {
     return r.json();
   },
   async upload(file) {
+    // Try native upload via JSON/Base64 if in Capacitor mode
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) {
+       try {
+         const base64Data = await fileToBase64(file);
+         const r = await nativeFetch(`${API_BASE}/api/upload`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+               file: base64Data,
+               filename: file.name,
+               type: file.type
+            })
+         });
+         if (!r.ok) throw new Error('Upload failed');
+         return r.json();
+       } catch (e) {
+         console.error('Native upload failed, falling back', e);
+       }
+    }
+
     const fd = new FormData();
     fd.append('file', file);
+    // Upload still uses fetch because FormData is hard to polyfill with CapacitorHttp
     const r = await fetch(`${API_BASE}/api/upload`, { method: 'POST', body: fd });
     if (!r.ok) throw new Error('Upload failed');
     return r.json(); // { url: "/uploads/..." }
@@ -219,7 +299,7 @@ const ServerAPI = {
   // Chat API
   async chatList() {
     const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
-    const r = await fetch(`${API_BASE}/api/chat${qp}`);
+    const r = await nativeFetch(`${API_BASE}/api/chat${qp}`);
     if (!r.ok) throw new Error('Failed to fetch chat history');
     return r.json(); // [ {id, role, content, ts}, ... ]
   },
@@ -255,7 +335,7 @@ const ServerAPI = {
     } catch (err) { /* ignore collection errors */ }
     // De-duplicate & cap to avoid huge payloads
     visibleIds = Array.from(new Set(visibleIds)).slice(0, 100);
-    const r = await fetch(`${API_BASE}/api/chat${qp}`, {
+    const r = await nativeFetch(`${API_BASE}/api/chat${qp}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, visibleIds })
@@ -265,7 +345,7 @@ const ServerAPI = {
   },
   async chatClear() {
     const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
-    const r = await fetch(`${API_BASE}/api/chat${qp}`, { method: 'DELETE' });
+    const r = await nativeFetch(`${API_BASE}/api/chat${qp}`, { method: 'DELETE' });
     if (!r.ok) throw new Error('Failed to clear chat');
     return r.json(); // []
   }
