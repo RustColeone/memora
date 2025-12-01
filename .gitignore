@@ -17,6 +17,7 @@ dist/
 
 # User-generated data (IMPORTANT)
 data/
+data copy/
 uploads/
 
 # Allow static/index.html for Capacitor app

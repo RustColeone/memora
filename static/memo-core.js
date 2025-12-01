@@ -1970,9 +1970,9 @@ function renderExtraAttachmentsList() {
   }
   if (!modalFilesExtra.length) { box.innerHTML = ''; return; }
   box.innerHTML = '<div class="muted" style="grid-column:1/-1">Other files</div>' + modalFilesExtra.map((f,i)=>{
-    return `<div class="attach-row" data-idx="${i}" style="display:flex;align-items:center;gap:8px;background:#0b1222;border:1px solid var(--border);padding:6px 10px;border-radius:10px;font-size:13px;">
+    return `<div class="attach-row" data-idx="${i}" style="display:flex;align-items:center;gap:8px;background:var(--input-bg);border:1px solid var(--border);padding:6px 10px;border-radius:10px;font-size:13px;">
       <span>📄</span>
-      <a href="${f.url}" target="_blank" rel="noopener" style="color:#93c5fd;text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</a>
+      <a href="${f.url}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</a>
       <button class="ghost" data-act="remove" title="Remove">×</button>
     </div>`;
   }).join('');

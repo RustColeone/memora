@@ -1,6 +1,10 @@
-// Finance variant: table view with purchaseDate, price, tax, adjustment, total
+// Finance variant: table view with purchaseDate, items, tax, total
 (function(){
   const { els } = window.MemoCore.getState();
+  
+  // New elements
+  els.itemsTable = document.querySelector('#itemsTable tbody');
+  els.addItemBtn = document.getElementById('addItemBtn');
 
   // In Capacitor mode, hide manual folder selection and browser-only saving hint
   if (typeof window !== 'undefined' && window.CAP_BOOT) {
@@ -13,44 +17,100 @@
     if (val === '' || val == null) return '';
     const s = String(val).trim();
     if (isTax && s.endsWith('%')) { return s; }
+    const num = parseFloat(s);
+    if (!isNaN(num)) return `$${num.toFixed(2)}`;
     return `$${s}`;
   }
   function formatMoneyFixed(val) {
     const num = typeof val === 'number' ? val : parseFloat(val) || 0;
     return `$${num.toFixed(2)}`;
   }
-  function computeTotal(price, tax, adjustment) {
-    let priceVal = parseFloat(price) || 0;
-    let adjVal = parseFloat(adjustment) || 0;
-    let taxVal = 0;
-    const taxInput = (typeof tax === 'string' ? tax.trim() : '');
-    if (taxInput.endsWith('%')) {
-      const perc = parseFloat(taxInput.slice(0, -1));
-      if (!isNaN(perc)) taxVal = priceVal * (perc / 100);
-    } else if (taxInput !== '') {
-      const abs = parseFloat(taxInput);
-      if (!isNaN(abs)) taxVal = abs;
-    }
-    return +(priceVal + taxVal + adjVal).toFixed(2);
-  }
-  function updateTotalField() {
-    if (!els.price || !els.tax || !els.adjustment || !els.total) return;
-    const t = computeTotal(els.price.value, els.tax.value, els.adjustment.value);
-    els.total.value = isNaN(t) ? '' : t;
-  }
-  ['input','change'].forEach(ev => {
-    if (els.price) els.price.addEventListener(ev, updateTotalField);
-    if (els.tax) els.tax.addEventListener(ev, updateTotalField);
-    if (els.adjustment) els.adjustment.addEventListener(ev, updateTotalField);
-  });
 
-  function getTaxAmount(price, tax) {
-    const priceVal = parseFloat(price) || 0;
+  function updateGrandTotal() {
+      if (!els.itemsTable || !els.total) return;
+      // Sum all row totals
+      const rows = Array.from(els.itemsTable.querySelectorAll('tr'));
+      let subtotal = 0;
+      rows.forEach(tr => {
+          const totalInput = tr.querySelector('.row-total');
+          subtotal += parseFloat(totalInput.value) || 0;
+      });
+      
+      // Calculate tax
+      let taxVal = 0;
+      const taxInput = els.tax ? els.tax.value.trim() : '';
+      if (taxInput.endsWith('%')) {
+          const perc = parseFloat(taxInput.slice(0, -1));
+          if (!isNaN(perc)) taxVal = subtotal * (perc / 100);
+      } else if (taxInput !== '') {
+          const abs = parseFloat(taxInput);
+          if (!isNaN(abs)) taxVal = abs;
+      }
+      
+      const grandTotal = subtotal + taxVal;
+      els.total.value = grandTotal.toFixed(2);
+  }
+
+  function createRow(item = {}, index) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+          <td class="col-id">${index + 1}</td>
+          <td class="col-name"><textarea class="row-name" rows="1" placeholder="Item">${item.name || ''}</textarea></td>
+          <td class="col-desc"><textarea class="row-desc" rows="1" placeholder="Desc">${item.description || ''}</textarea></td>
+          <td class="col-qty"><input type="number" class="row-qty" value="${item.amount || 1}" min="0" step="any"></td>
+          <td class="col-unit"><input type="number" class="row-unit" value="${item.unitPrice || 0}" min="0" step="0.01"></td>
+          <td class="col-total"><input type="number" class="row-total" value="${item.totalPrice || 0}" readonly></td>
+          <td class="col-action"><button class="ghost small danger row-del" title="Remove">×</button></td>
+      `;
+      
+      const qtyInput = tr.querySelector('.row-qty');
+      const unitInput = tr.querySelector('.row-unit');
+      const totalInput = tr.querySelector('.row-total');
+      const delBtn = tr.querySelector('.row-del');
+
+      // Auto-resize textareas
+      const nameInput = tr.querySelector('.row-name');
+      const descInput = tr.querySelector('.row-desc');
+      function autoResize(el) {
+          el.style.height = 'auto';
+          el.style.height = el.scrollHeight + 'px';
+      }
+      nameInput.addEventListener('input', () => autoResize(nameInput));
+      descInput.addEventListener('input', () => autoResize(descInput));
+      setTimeout(() => { autoResize(nameInput); autoResize(descInput); }, 0);
+
+      function updateRowTotal() {
+          const qty = parseFloat(qtyInput.value) || 0;
+          const unit = parseFloat(unitInput.value) || 0;
+          const total = qty * unit;
+          totalInput.value = total.toFixed(2);
+          updateGrandTotal();
+      }
+
+      qtyInput.addEventListener('input', updateRowTotal);
+      unitInput.addEventListener('input', updateRowTotal);
+      delBtn.addEventListener('click', () => {
+          tr.remove();
+          renumberRows();
+          updateGrandTotal();
+      });
+
+      return tr;
+  }
+
+  function renumberRows() {
+      const rows = els.itemsTable.querySelectorAll('tr');
+      rows.forEach((tr, i) => {
+          tr.querySelector('.col-id').textContent = i + 1;
+      });
+  }
+
+  function getTaxAmount(subtotal, tax) {
     if (tax == null || tax === '') return 0;
     const s = String(tax).trim();
     if (s.endsWith('%')) {
       const perc = parseFloat(s.slice(0, -1));
-      return isNaN(perc) ? 0 : priceVal * (perc / 100);
+      return isNaN(perc) ? 0 : subtotal * (perc / 100);
     }
     const abs = parseFloat(s);
     return isNaN(abs) ? 0 : abs;
@@ -65,19 +125,85 @@
       return `${y}-${m}-${day}`;
     }
     if (els.entryDate) els.entryDate.value = entry ? (entry.purchaseDate || (entry.ts ? (new Date(entry.ts)).toISOString().slice(0,10) : '')) : todayLocalYMD();
-    if (els.price) els.price.value = entry ? (entry.price ?? '') : '';
+    
+    // Setup Items Table
+    if (els.itemsTable) {
+        els.itemsTable.innerHTML = '';
+        let items = entry && entry.items ? entry.items : [];
+        
+        // Migration for legacy entries
+        if (entry && !entry.items && (entry.price || entry.adjustment)) {
+            if (entry.price) {
+                items.push({
+                    name: 'Item',
+                    description: entry.description || '',
+                    amount: 1,
+                    unitPrice: entry.price,
+                    totalPrice: entry.price
+                });
+            }
+            if (entry.adjustment) {
+                items.push({
+                    name: 'Adjustment',
+                    description: '',
+                    amount: 1,
+                    unitPrice: entry.adjustment,
+                    totalPrice: entry.adjustment
+                });
+            }
+        }
+        
+        if (items.length === 0) items = [{amount:1, unitPrice:0, totalPrice:0}];
+        
+        items.forEach((item, i) => {
+            els.itemsTable.appendChild(createRow(item, i));
+        });
+    }
+
     if (els.tax) els.tax.value = entry ? (entry.tax ?? '') : '';
-    if (els.adjustment) els.adjustment.value = entry ? (entry.adjustment ?? '') : '';
-    setTimeout(updateTotalField, 1);
+    
+    // Bind Add Button
+    if (els.addItemBtn) {
+        els.addItemBtn.onclick = (e) => {
+            e.preventDefault();
+            const rowCount = els.itemsTable.querySelectorAll('tr').length;
+            els.itemsTable.appendChild(createRow({amount:1, unitPrice:0, totalPrice:0}, rowCount));
+            updateGrandTotal();
+        };
+    }
+    
+    if (els.tax) els.tax.oninput = updateGrandTotal;
+    
+    setTimeout(updateGrandTotal, 1);
   }
 
   function collectAdditionalFields(entry, isNew) {
     const purchaseDate = els.entryDate && els.entryDate.value ? els.entryDate.value : (new Date()).toISOString().slice(0,10);
-    const price = els.price && els.price.value ? parseFloat(els.price.value) : 0;
+    
+    const items = [];
+    if (els.itemsTable) {
+        els.itemsTable.querySelectorAll('tr').forEach(tr => {
+            items.push({
+                name: tr.querySelector('.row-name').value.trim(),
+                description: tr.querySelector('.row-desc').value.trim(),
+                amount: parseFloat(tr.querySelector('.row-qty').value) || 0,
+                unitPrice: parseFloat(tr.querySelector('.row-unit').value) || 0,
+                totalPrice: parseFloat(tr.querySelector('.row-total').value) || 0
+            });
+        });
+    }
+
     const tax = els.tax && els.tax.value ? els.tax.value : '';
-    const adjustment = els.adjustment && els.adjustment.value ? parseFloat(els.adjustment.value) : 0;
-    const total = computeTotal(price, tax, adjustment);
-    entry.purchaseDate = purchaseDate; entry.price = price; entry.tax = tax; entry.adjustment = adjustment; entry.total = total;
+    const total = els.total ? (parseFloat(els.total.value) || 0) : 0;
+    
+    entry.purchaseDate = purchaseDate; 
+    entry.items = items;
+    entry.tax = tax; 
+    entry.total = total;
+    
+    // Remove legacy fields
+    delete entry.price;
+    delete entry.adjustment;
   }
 
   function normalizeServerMemo(m) {
@@ -95,10 +221,12 @@
       images: m.images || [],
       attachments: m.attachments || [],
       purchaseDate: m.purchaseDate || (m.ts ? new Date(m.ts).toISOString().slice(0,10) : ''),
-      price: m.price || 0,
+      items: m.items || [],
       tax: m.tax || '',
-      adjustment: m.adjustment || 0,
       total: m.total || 0,
+      // Keep legacy for read-only if needed, but UI prefers items
+      price: m.price,
+      adjustment: m.adjustment
     };
   }
 
@@ -110,7 +238,7 @@
     const dt = activeFilters.dateTo ? (new Date(activeFilters.dateTo).getTime() + 24 * 3600 * 1000 - 1) : null;
 
     const filtered = db.entries
-      .filter(e => e.deletedAt === null || e.deletedAt === undefined) // ← Exclude deleted entries
+      .filter(e => e.deletedAt === null || e.deletedAt === undefined)
       .filter(e => (cat === '__ALL__' ? true : e.category === cat))
       .filter(e => activeFilters.cats.size ? activeFilters.cats.has(e.category) : true)
       .filter(e => {
@@ -121,7 +249,9 @@
         if (!q) return true;
         const inDesc = (e.description || '').toLowerCase().includes(q);
         const inTags = (e.tags || []).some(t => (t || '').toLowerCase().includes(q));
-        return inDesc || inTags;
+        // Also search in item names
+        const inItems = (e.items || []).some(i => (i.name || '').toLowerCase().includes(q));
+        return inDesc || inTags || inItems;
       })
       .sort((a, b) => {
         const ad = new Date(a.purchaseDate || a.ts).getTime();
@@ -129,18 +259,24 @@
         return bd - ad;
       });
 
-    // Compute totals across filtered entries
+    // Compute totals
     const totals = filtered.reduce((acc, e) => {
-      const priceNum = parseFloat(e.price) || 0;
-      const adjNum = parseFloat(e.adjustment) || 0;
-      const taxNum = getTaxAmount(e.price, e.tax);
-      const totalNum = typeof e.total === 'number' ? e.total : computeTotal(e.price, e.tax, e.adjustment);
-      acc.price += priceNum;
+      // Calculate subtotal from items if available, else use legacy price
+      let subtotal = 0;
+      if (e.items && e.items.length) {
+          subtotal = e.items.reduce((s, i) => s + (i.totalPrice || 0), 0);
+      } else {
+          subtotal = (parseFloat(e.price) || 0) + (parseFloat(e.adjustment) || 0);
+      }
+      
+      const taxNum = getTaxAmount(subtotal, e.tax);
+      const totalNum = typeof e.total === 'number' ? e.total : (subtotal + taxNum);
+      
+      acc.subtotal += subtotal;
       acc.tax += taxNum;
-      acc.adj += adjNum;
       acc.total += totalNum;
       return acc;
-    }, { price: 0, tax: 0, adj: 0, total: 0 });
+    }, { subtotal: 0, tax: 0, total: 0 });
 
     if (els.feed) els.feed.innerHTML = '';
     const wrap = document.createElement('div'); wrap.className = 'tablewrap';
@@ -151,9 +287,8 @@
           <th class="col-date">Date</th>
           <th class="col-desc">Description</th>
           <th class="col-images">Images</th>
-          <th class="col-price">Price</th>
+          <th class="col-price">Subtotal</th>
           <th class="col-tax">Tax</th>
-          <th class="col-adj">Adjustments</th>
           <th class="col-total">Total</th>
         </tr>
       </thead>
@@ -161,13 +296,11 @@
     `;
     const tbody = table.querySelector('tbody');
 
-    // Expose filtered list for chat context
     window.MemoVariant.__lastFiltered = () => filtered.slice();
     for (const e of filtered) {
       const tr = document.createElement('tr');
       tr.setAttribute('data-id', e.id);
       
-      // Add conflict indicator styling
       if (e._hasConflict) {
         tr.style.borderLeft = '4px solid #f59e0b';
         tr.style.backgroundColor = 'rgba(245, 158, 11, 0.05)';
@@ -179,7 +312,6 @@
       const descCell = document.createElement('td'); descCell.className = 'col-desc';
       const descWrap = document.createElement('div'); descWrap.className = 'desc-cell';
       
-      // Add conflict banner if needed
       if (e._hasConflict) {
         const conflictBanner = document.createElement('div');
         conflictBanner.style.background = '#f59e0b';
@@ -203,21 +335,19 @@
       descWrap.appendChild(descText); descCell.appendChild(descWrap); tr.appendChild(descCell);
 
       const imagesCell = document.createElement('td'); imagesCell.className = 'col-images images-cell';
-  const isImage = window.MemoCore.isImage;
-  const imgsAll = Array.isArray(e.images) ? e.images.filter(Boolean) : [];
-  const imgs = imgsAll.filter(src => isImage(src));
-  const otherFiles = (e.attachments || []).filter(a => {
-    if (!a) return false;
-    // For attachments, check the storedPath or type, not the blob URL
-    const checkPath = a.storedPath || a.url;
-    const isImageFile = isImage(checkPath);
-    // Also check MIME type if available
-    if (a.type && !isImageFile) {
-      return !a.type.startsWith('image/');
-    }
-    return !isImageFile;
-  });
-  const count = imgs.length;
+      const isImage = window.MemoCore.isImage;
+      const imgsAll = Array.isArray(e.images) ? e.images.filter(Boolean) : [];
+      const imgs = imgsAll.filter(src => isImage(src));
+      const otherFiles = (e.attachments || []).filter(a => {
+        if (!a) return false;
+        const checkPath = a.storedPath || a.url;
+        const isImageFile = isImage(checkPath);
+        if (a.type && !isImageFile) {
+          return !a.type.startsWith('image/');
+        }
+        return !isImageFile;
+      });
+      const count = imgs.length;
       if (count > 0) {
         const container = document.createElement('div'); container.className = 'inline-thumbs';
         if (count <= 2) {
@@ -241,9 +371,16 @@
       }
       tr.appendChild(imagesCell);
 
-      const priceCell = document.createElement('td'); priceCell.className = 'col-price'; priceCell.textContent = formatMoney(e.price); tr.appendChild(priceCell);
+      // Calculate subtotal for display
+      let subtotal = 0;
+      if (e.items && e.items.length) {
+          subtotal = e.items.reduce((s, i) => s + (i.totalPrice || 0), 0);
+      } else {
+          subtotal = (parseFloat(e.price) || 0) + (parseFloat(e.adjustment) || 0);
+      }
+
+      const priceCell = document.createElement('td'); priceCell.className = 'col-price'; priceCell.textContent = formatMoney(subtotal); tr.appendChild(priceCell);
       const taxCell = document.createElement('td'); taxCell.className = 'col-tax'; taxCell.textContent = formatMoney(e.tax, true); tr.appendChild(taxCell);
-      const adjCell = document.createElement('td'); adjCell.className = 'col-adj'; adjCell.textContent = formatMoney(e.adjustment); tr.appendChild(adjCell);
       const totalCell = document.createElement('td'); totalCell.className = 'col-total'; totalCell.textContent = formatMoney(e.total); tr.appendChild(totalCell);
 
       tr.addEventListener('click', () => openDetail(e.id));
@@ -252,25 +389,22 @@
 
     if (filtered.length === 0) {
       const tr = document.createElement('tr'); const td = document.createElement('td');
-      td.colSpan = 7; td.className = 'muted'; td.textContent = 'No entries. Click the + button to add one, or adjust filters.'; tr.appendChild(td); tbody.appendChild(tr);
+      td.colSpan = 6; td.className = 'muted'; td.textContent = 'No entries. Click the + button to add one, or adjust filters.'; tr.appendChild(td); tbody.appendChild(tr);
     }
 
-    // Add a visible table footer with totals (primary source of truth)
     const tfoot = document.createElement('tfoot');
     tfoot.innerHTML = `
       <tr class="totals-row">
         <td class="col-date"></td>
         <td class="col-desc totals-label">Totals</td>
         <td class="col-images"></td>
-        <td class="col-price">${formatMoneyFixed(totals.price)}</td>
+        <td class="col-price">${formatMoneyFixed(totals.subtotal)}</td>
         <td class="col-tax">${formatMoneyFixed(totals.tax)}</td>
-        <td class="col-adj">${formatMoneyFixed(totals.adj)}</td>
         <td class="col-total">${formatMoneyFixed(totals.total)}</td>
       </tr>`;
     table.appendChild(tfoot);
     wrap.appendChild(table);
 
-    // Fixed totals bar that appears only when tfoot is not visible
     const sticky = document.createElement('div');
     sticky.className = 'totals-sticky hidden';
     sticky.innerHTML = `
@@ -281,9 +415,8 @@
               <td class="col-date"></td>
               <td class="col-desc totals-label">Totals</td>
               <td class="col-images"></td>
-              <td class="col-price">${formatMoneyFixed(totals.price)}</td>
+              <td class="col-price">${formatMoneyFixed(totals.subtotal)}</td>
               <td class="col-tax">${formatMoneyFixed(totals.tax)}</td>
-              <td class="col-adj">${formatMoneyFixed(totals.adj)}</td>
               <td class="col-total">${formatMoneyFixed(totals.total)}</td>
             </tr>
           </tbody>
@@ -292,7 +425,6 @@
     `;
     wrap.appendChild(sticky);
 
-    // Toggle sticky bar when footer totals row is out of view
     try {
       const target = tfoot.querySelector('.totals-row') || tfoot;
       const io = new IntersectionObserver((entries) => {
@@ -300,14 +432,11 @@
         if (entry && entry.isIntersecting) {
           sticky.classList.add('hidden');
         } else {
-          // Only show if we actually have rows (avoid showing on empty state)
           if (filtered.length > 0) sticky.classList.remove('hidden');
         }
       }, { threshold: 0.01 });
       io.observe(target);
-    } catch (e) {
-      // IntersectionObserver not available; leave sticky hidden
-    }
+    } catch (e) { }
 
     if (els.feed) els.feed.appendChild(wrap);
     updateFilterIndicator();
@@ -321,33 +450,102 @@
     const imgsOnly = (e.images || []).filter(src => isImage(src));
     const otherFiles = (e.attachments || []).filter(a => {
       if (!a) return false;
-      // For attachments, check the storedPath or type, not the blob URL
       const checkPath = a.storedPath || a.url;
       const isImageFile = isImage(checkPath);
-      // Also check MIME type if available
       if (a.type && !isImageFile) {
         return !a.type.startsWith('image/');
       }
       return !isImageFile;
     });
     const imgs = imgsOnly.map((src, i) => `<img data-eid="${e.id}" data-idx="${i}" src="${src}" alt="" class="thumb" style="width:60px;height:60px;margin:2px;cursor:pointer;">`).join('');
+    
+    // Build items table HTML
+    let itemsHtml = '';
+    let items = e.items || [];
+    // Migration for display
+    if (items.length === 0 && (e.price || e.adjustment)) {
+        if (e.price) items.push({name:'Item', description:e.description, amount:1, unitPrice:e.price, totalPrice:e.price});
+        if (e.adjustment) items.push({name:'Adjustment', description:'', amount:1, unitPrice:e.adjustment, totalPrice:e.adjustment});
+    }
+    
+    if (items.length > 0) {
+        itemsHtml = `
+        <div style="overflow-x:auto;margin:14px 0 10px 0;">
+            <table class="feed-table" style="width:100%;border-collapse:collapse;">
+                <thead>
+                    <tr style="background:var(--card);border-bottom:1px solid var(--border);">
+                        <th style="padding:8px;text-align:left;">#</th>
+                        <th style="padding:8px;text-align:left;">Name</th>
+                        <th style="padding:8px;text-align:left;">Desc</th>
+                        <th style="padding:8px;text-align:right;">Qty</th>
+                        <th style="padding:8px;text-align:right;">Unit</th>
+                        <th style="padding:8px;text-align:right;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${items.map((item, i) => `
+                    <tr style="border-bottom:1px solid var(--border);">
+                        <td style="padding:8px;">${i+1}</td>
+                        <td style="padding:8px;"><div class="clamp-scroll">${item.name || ''}</div></td>
+                        <td style="padding:8px;"><div class="clamp-scroll">${item.description || ''}</div></td>
+                        <td style="padding:8px;text-align:right;">${item.amount}</td>
+                        <td style="padding:8px;text-align:right;">${formatMoney(item.unitPrice)}</td>
+                        <td style="padding:8px;text-align:right;">${formatMoney(item.totalPrice)}</td>
+                    </tr>
+                    `).join('')}
+                    <tr style="font-weight:bold;background:var(--card);">
+                        <td colspan="5" style="padding:8px;text-align:right;">Tax</td>
+                        <td style="padding:8px;text-align:right;">${formatMoney(e.tax, true)}</td>
+                    </tr>
+                    <tr style="font-weight:bold;background:var(--card);">
+                        <td colspan="5" style="padding:8px;text-align:right;">Total</td>
+                        <td style="padding:8px;text-align:right;">${formatMoney(e.total)}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <button class="ghost small" id="copyCsvBtn" style="margin-bottom:10px;">Copy Table as CSV</button>
+        `;
+    }
+
     els.detailContent.innerHTML = `
       <div class="muted">Date: ${e.purchaseDate || (e.ts ? (new Date(e.ts)).toISOString().slice(0, 10) : '')} • ${e.category}</div>
       <h3>${e.description ? e.description.replace(/</g, '&lt;').replace(/\n/g, '<br>') : '(No description)'}</h3>
       <div class="tagsline">${(e.tags || []).map(t => `<span class="tagpill">#${t}</span>`).join('')}</div>
-      <table class="feed-table" style="margin:14px 0 10px 0;max-width:480px;">
-          <tr><th>Price</th><th>Tax</th><th>Adjustment</th><th>Total</th></tr>
-          <tr>
-              <td>${e.price ?? ''}</td>
-              <td>${e.tax ?? ''}</td>
-              <td>${e.adjustment ?? ''}</td>
-              <td>${e.total ?? ''}</td>
-          </tr>
-      </table>
+      
+      ${itemsHtml}
+      
       <div class="thumbs" id="detailThumbs" style="margin-top:10px">${imgs || '<span class="muted">No images</span>'}</div>
       ${otherFiles.length ? `<div class="filelist" style="margin-top:10px;display:grid;gap:6px;">` + otherFiles.map(a=>`<a href="${a.url}" target="_blank" rel="noopener" style="color:#93c5fd;text-decoration:none;font-size:13px;">📄 ${a.name || a.url.split('/').pop()}</a>`).join('') + `</div>`:''}
       <div class="muted">Tip: Click to view. Drag to reorder (saves on drop).</div>
     `;
+    
+    // Bind Copy CSV
+    const copyBtn = els.detailContent.querySelector('#copyCsvBtn');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+            const headers = ['ID', 'Name', 'Description', 'Quantity', 'Unit Price', 'Total Price'];
+            const rows = items.map((item, i) => [
+                i + 1,
+                `"${(item.name || '').replace(/"/g, '""')}"`,
+                `"${(item.description || '').replace(/"/g, '""')}"`,
+                item.amount,
+                item.unitPrice,
+                item.totalPrice
+            ]);
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(r => r.join(','))
+            ].join('\n');
+            
+            navigator.clipboard.writeText(csvContent).then(() => {
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => copyBtn.textContent = originalText, 2000);
+            });
+        });
+    }
+
     const cont = els.detailContent.querySelector('#detailThumbs');
     let startIdx = null;
     cont.querySelectorAll('img').forEach((im, idx) => {

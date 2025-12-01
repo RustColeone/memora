@@ -190,17 +190,31 @@
                         <label for="entryDate">Purchase Date</label>
                         <input id="entryDate" type="date" />
                     </div>
-                    <div class="row">
-                        <label for="price">Price</label>
-                        <input id="price" type="number" step="0.01" min="0" />
+                </div>
+                <div class="row">
+                    <label>Items</label>
+                    <div class="items-wrapper">
+                        <table id="itemsTable" class="items-table">
+                            <thead>
+                                <tr>
+                                    <th class="col-id">#</th>
+                                    <th class="col-name">Name</th>
+                                    <th class="col-desc">Desc</th>
+                                    <th class="col-qty">Qty</th>
+                                    <th class="col-unit">Unit</th>
+                                    <th class="col-total">Total</th>
+                                    <th class="col-action"></th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                        <button id="addItemBtn" class="ghost small" style="margin-top:8px">+ Add Item</button>
                     </div>
+                </div>
+                <div class="rowgrid">
                     <div class="row">
                         <label for="tax">Tax</label>
                         <input id="tax" type="text" placeholder="e.g. 10%" />
-                    </div>
-                    <div class="row">
-                        <label for="adjustment">Adjustment</label>
-                        <input id="adjustment" type="number" step="0.01" min="0" placeholder="Shipping, tips, etc." />
                     </div>
                     <div class="row">
                         <label>Total</label>

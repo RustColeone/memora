@@ -254,10 +254,12 @@ const SyncManager = {
             // Add variant-specific fields
             if (window.MEMO_VARIANT === 'finance') {
               formatted.purchaseDate = entry.purchaseDate;
-              formatted.price = entry.price;
+              formatted.items = entry.items || [];
               formatted.tax = entry.tax;
-              formatted.adjustment = entry.adjustment;
               formatted.total = entry.total;
+              // Keep legacy fields for backward compatibility TODO delete this eventually
+              formatted.price = entry.price;
+              formatted.adjustment = entry.adjustment;
             }
             
             // Images: ONLY use _storedPaths (never blob URLs from entry.images)
@@ -484,10 +486,12 @@ const SyncManager = {
       // Add variant-specific fields
       if (window.MEMO_VARIANT === 'finance') {
         formatted.purchaseDate = entry.purchaseDate;
-        formatted.price = entry.price;
+        formatted.items = entry.items || [];
         formatted.tax = entry.tax;
-        formatted.adjustment = entry.adjustment;
         formatted.total = entry.total;
+        // Keep legacy fields for backward compatibility
+        formatted.price = entry.price;
+        formatted.adjustment = entry.adjustment;
       }
       
       // Upload images if local files exist

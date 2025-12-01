@@ -265,3 +265,102 @@
     .listtable th { font-size: 11px; }
     .desc-text { font-size: 11px; }
 }
+
+/* Items Table in Edit Modal */
+.items-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--input-bg);
+    padding: 8px;
+    margin-top: 4px;
+}
+
+.items-table {
+    width: 100%;
+    min-width: 340px; /* Ensure it doesn't squash too much */
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.items-table th {
+    text-align: left;
+    padding: 6px 8px;
+    color: var(--muted);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.items-table td {
+    padding: 4px;
+    vertical-align: top;
+    border-bottom: 1px solid var(--border);
+}
+.items-table tr:last-child td { border-bottom: none; }
+
+.items-table input,
+.items-table textarea {
+    width: 100%;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text);
+    padding: 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: inherit;
+}
+
+.items-table textarea {
+    resize: none;
+    overflow-y: auto;
+    min-height: 32px;
+    max-height: 74px; /* ~3 lines */
+    line-height: 1.4;
+    overscroll-behavior: contain;
+}
+
+.items-table input:focus,
+.items-table textarea:focus {
+    background: var(--bg);
+    border-color: var(--accent);
+    outline: none;
+}
+
+.clamp-scroll {
+    max-height: 4.5em;
+    overflow-y: auto;
+    word-break: break-word;
+    line-height: 1.4;
+    overscroll-behavior: contain;
+}
+
+.items-table input[readonly] {
+    color: var(--muted);
+    text-align: right;
+}
+.items-table input[type=number] {
+    text-align: right;
+}
+
+.items-table .col-id { width: 30px; text-align: center; color: var(--muted); }
+.items-table .col-qty { width: 60px; }
+.items-table .col-unit { width: 80px; }
+.items-table .col-total { width: 80px; }
+.items-table .col-action { width: 30px; text-align: center; }
+
+/* Mobile adjustments */
+@media (max-width: 600px) {
+    /* On very small screens, let it scroll horizontally */
+    .items-wrapper {
+        padding: 0;
+        border: none;
+        background: transparent;
+    }
+    .items-table {
+        background: var(--input-bg);
+        border-radius: 8px;
+    }
+}
+
