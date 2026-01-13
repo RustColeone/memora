@@ -88,7 +88,13 @@
 <body>
     <header>
         <div class="bar">
-            <div class="brand">🗂️ Memo</div>
+            <div class="brand-dropdown">
+                <button class="brand" onclick="document.getElementById('brandMenu').classList.toggle('show')">🗂️ Memo ▾</button>
+                <div id="brandMenu" class="dropdown-content">
+                    <a href="">🗂️ Memo</a>
+                    <a href="finance.html">💸 Finance</a>
+                </div>
+            </div>
             <div class="spacer"></div>
             <select id="categoryFilter">
                 <option value="__ALL__">All categories</option>

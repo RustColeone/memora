@@ -87,7 +87,13 @@
 <body>
     <header>
         <div class="bar">
-            <div class="brand">💸 Finance</div>
+            <div class="brand-dropdown">
+                <button class="brand" onclick="document.getElementById('brandMenu').classList.toggle('show')">💸 Finance ▾</button>
+                <div id="brandMenu" class="dropdown-content">
+                    <a href="">🗂️ Memo</a>
+                    <a href="finance.html">💸 Finance</a>
+                </div>
+            </div>
             <div class="spacer"></div>
             <select id="categoryFilter">
                 <option value="__ALL__">All categories</option>
@@ -481,6 +487,20 @@
             }
             if (!window.CAP_BOOT) loadSeq(0);
         })();
+    </script>
+    <script>
+        /* Close brand dropdown if clicked outside */
+        window.addEventListener('click', function(event) {
+             if (!event.target.matches('.brand')) {
+                 var dropdowns = document.getElementsByClassName("dropdown-content");
+                 for (var i = 0; i < dropdowns.length; i++) {
+                     var openDropdown = dropdowns[i];
+                     if (openDropdown.classList.contains('show')) {
+                         openDropdown.classList.remove('show');
+                     }
+                 }
+             }
+        });
     </script>
 </body>
 

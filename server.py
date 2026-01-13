@@ -960,6 +960,10 @@ def serve_file(filename):
 def serve_index():
     return render_template('index.html')
 
+@app.route('/index.html')
+def serve_index():
+    return render_template('index.html')
+
 # Finance page route
 @app.route('/finance')
 def serve_finance():

@@ -1462,3 +1462,59 @@ input[type="number"] {
     color: var(--accent);
     border: 1px solid var(--accent);
 }
+
+/* Brand Dropdown */
+.brand-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.brand-dropdown .brand {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.brand-dropdown .brand:hover {
+    color: var(--accent);
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: var(--dropdown-bg);
+    min-width: 140px;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    z-index: 100;
+    top: 100%;
+    left: 0;
+    margin-top: 8px;
+    overflow: hidden;
+}
+
+.dropdown-content a {
+    color: var(--text);
+    padding: 12px 16px;
+    text-decoration: none;
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.dropdown-content a:hover {
+    background-color: var(--dropdown-hover);
+    color: var(--accent);
+}
+
+.show {
+    display: block;
+}
