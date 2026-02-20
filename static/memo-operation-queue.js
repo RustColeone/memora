@@ -9,6 +9,8 @@ const OperationQueue = {
   isSyncing: false,
   autoSyncInterval: null,
   deviceId: null,
+  visibilityHandler: null,
+  unloadHandler: null,
   
   /**
    * Initialize the operation queue
@@ -56,17 +58,25 @@ const OperationQueue = {
     console.log('   ✅ Auto-sync scheduled (every 5 minutes)');
     
     // Sync when user returns to tab
-    document.addEventListener('visibilitychange', () => {
+    if (this.visibilityHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityHandler);
+    }
+    this.visibilityHandler = () => {
       if (!document.hidden && !this.isSyncing) {
         this.processQueue();
       }
-    });
+    };
+    document.addEventListener('visibilitychange', this.visibilityHandler);
     console.log('   ✅ Visibility sync enabled');
     
     // Best effort sync on unload
-    window.addEventListener('beforeunload', () => {
+    if (this.unloadHandler) {
+      window.removeEventListener('beforeunload', this.unloadHandler);
+    }
+    this.unloadHandler = () => {
       this.saveQueue();
-    });
+    };
+    window.addEventListener('beforeunload', this.unloadHandler);
     console.log('   ✅ Unload sync enabled');
     
     console.log('✅ Operation Queue initialization complete!');
@@ -756,6 +766,14 @@ const OperationQueue = {
   destroy() {
     if (this.autoSyncInterval) {
       clearInterval(this.autoSyncInterval);
+    }
+    if (this.visibilityHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityHandler);
+      this.visibilityHandler = null;
+    }
+    if (this.unloadHandler) {
+      window.removeEventListener('beforeunload', this.unloadHandler);
+      this.unloadHandler = null;
     }
   }
 };

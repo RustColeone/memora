@@ -203,7 +203,10 @@ function fileToBase64(file) {
 
 async function detectMode() {
   try {
-    const r = await nativeFetch(`${API_BASE}/api/config`, { cache: 'no-store' });
+    const r = await Promise.race([
+      nativeFetch(`${API_BASE}/api/config`, { cache: 'no-store' }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('config timeout')), 1200))
+    ]);
     if (r.ok) {
       const j = await r.json();
       MODE = (j && j.server) ? 'server' : 'local';
@@ -1681,10 +1684,11 @@ function renderFeed() {
 async function coreInit() {
   loadAll();
   refreshCategoryControls();
+  renderFeed();
   if (els.fsStatus) els.fsStatus.textContent = settings.fsEnabled ? 'enabled' : 'disabled';
 
   // Clean up expired deleted entries (30+ days old)
-  await cleanupExpiredDeletes();
+  cleanupExpiredDeletes().catch(err => console.warn('cleanupExpiredDeletes failed:', err));
   updateRecycleBinBadge();
 
   // Set up daily cleanup
@@ -1706,7 +1710,10 @@ async function coreInit() {
     }
 
     try {
-      const memos = await ServerAPI.list();
+      const memos = await Promise.race([
+        ServerAPI.list(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('memos list timeout')), 5000))
+      ]);
       db.entries = (memos || []).map(m => {
         if (window.MemoVariant && typeof window.MemoVariant.normalizeServerMemo === 'function') {
           return window.MemoVariant.normalizeServerMemo(m);
