@@ -363,6 +363,16 @@ function loadAll() {
 function saveAll() {
   localStorage.setItem(DB_KEY, JSON.stringify(db));
   localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...settings, memoDirHandle: undefined }));
+  
+  // Also save to file system if folder is selected
+  if (settings.fsEnabled && settings.memoDirHandle) {
+    console.log('💾 Saving to local file system...');
+    writeEntriesToFS(settings.memoDirHandle, db).then(() => {
+      console.log('✅ Saved to local memos.json');
+    }).catch(err => {
+      console.error('❌ Failed to save to local file system:', err);
+    });
+  }
 }
 function recomputeTags() {
   const counts = {};
@@ -485,7 +495,39 @@ async function writeEntriesToFS(rootDir, data) {
   const name = variantDataFileName();
   const fh = await dataDir.getFileHandle(name, { create: true });
   const w = await fh.createWritable();
-  await w.write(JSON.stringify(data || { entries: [] }, null, 2));
+  
+  // Clone data to avoid modifying the in-memory state
+  const dataClone = JSON.parse(JSON.stringify(data || { entries: [] }));
+  
+  // Clean up entries for persistence:
+  // 1. Convert _storedPaths to proper /uploads/ paths for images
+  // 2. Remove internal _storedPaths and other local-only fields
+  if (dataClone.entries && Array.isArray(dataClone.entries)) {
+    dataClone.entries.forEach(entry => {
+      // Restore images paths from _storedPaths if available needed for server symmetry
+      if (entry._storedPaths && Array.isArray(entry._storedPaths) && entry._storedPaths.length > 0) {
+        entry.images = entry._storedPaths.map(sp => sp.startsWith('uploads/') ? `/${sp}` : `/uploads/${sp}`);
+      }
+      
+      // Cleanup internal fields
+      delete entry._storedPaths;
+      delete entry._hasConflict;
+      delete entry._conflictClientVersion;
+      delete entry._conflictResolvedAt;
+      
+      // Ensure attachments also use the correct path format if they have storedPath
+      if (entry.attachments && Array.isArray(entry.attachments)) {
+        entry.attachments.forEach(att => {
+          if (att.storedPath) {
+            att.url = att.storedPath.startsWith('uploads/') ? `/${att.storedPath}` : `/uploads/${att.storedPath}`;
+            delete att.storedPath;
+          }
+        });
+      }
+    });
+  }
+  
+  await w.write(JSON.stringify(dataClone.entries, null, 2)); // Save as array
   await w.close();
 }
 
@@ -554,10 +596,14 @@ async function loadFromFolder(dirHandle) {
       let sp = null;
       if (typeof im === 'string') {
         // Server URL format: "/uploads/DATE/FILE"
-        const match = im.match(/\/uploads\/([^\/]+\/[^\/]+)/);
-        sp = match ? match[1] : im;
+        if (im.startsWith('/uploads/')) {
+          // Map /uploads/foo to uploads/foo for local FS lookup
+          sp = im.substring(1);
+        } else {
+          sp = im;
+        }
       } else if (im && typeof im === 'object' && im.storedPath) {
-        // Old storedPath format: {storedPath: "DATE/FILE"}
+        // Old storedPath format
         sp = im.storedPath;
       }
       
@@ -569,6 +615,11 @@ async function loadFromFolder(dirHandle) {
         }
         catch (err) { 
           // Silently skip missing images
+          console.warn('Could not load local image:', sp, err);
+          // If we can't load the blob, keep the original string so it's not lost on save
+          // but we can't display it. 
+          // However, if we save this, "images" will have the string, which is what we want for persistence anyway.
+          // But in memory, "images" is used for <img> src.
         }
       }
     }
@@ -595,8 +646,11 @@ async function loadFromFolder(dirHandle) {
         let sp = att.storedPath;
         if (!sp && att.url) {
           // Convert server URL to storedPath
-          const match = att.url.match(/\/uploads\/([^\/]+\/[^\/]+)/);
-          sp = match ? match[1] : att.url;
+          if (att.url.startsWith('/uploads/')) {
+             sp = att.url.substring(1);
+          } else {
+             sp = att.url;
+          }
         }
         
         if (sp) {
@@ -609,9 +663,12 @@ async function loadFromFolder(dirHandle) {
               type: att.type || 'application/octet-stream'
             });
           } catch (err) {
-            // Skip missing attachments
+            // Keep original if file not found locally
             console.log(`⚠️ Attachment not found: ${sp}`);
+            attachments.push(att);
           }
+        } else {
+            attachments.push(att);
         }
       }
       if (attachments.length > 0) {
@@ -1248,6 +1305,37 @@ async function onSaveEntry() {
       if (i >= 0) db.entries[i] = entry;
     }
     recomputeTags(); saveAll();
+    
+    // Add to operation queue for sync (for local/file mode)
+    if (window.OperationQueue && MODE !== 'server') {
+      console.log('📋 Adding operation to queue:', isNew ? 'create' : 'update', entry.id);
+      const opData = {
+        description: entry.description,
+        category: entry.category,
+        tags: entry.tags,
+        ts: entry.ts,
+        createdAt: entry.createdAt,
+        updatedAt: entry.updatedAt
+      };
+      
+      // Add file references if they exist
+      if (entry._storedPaths && entry._storedPaths.length > 0) {
+        opData._filesToUpload = entry._storedPaths;
+      }
+      
+      if (window.MEMO_VARIANT === 'finance') {
+        opData.purchaseDate = entry.purchaseDate;
+        opData.items = entry.items;
+        opData.tax = entry.tax;
+        opData.total = entry.total;
+      }
+      
+      if (isNew) {
+        await window.OperationQueue.addOperation('create', entry.id, opData);
+      } else {
+        await window.OperationQueue.addOperation('update', entry.id, opData);
+      }
+    }
   }
 
   if (els.entryDlg) els.entryDlg.close();
@@ -1280,6 +1368,13 @@ async function onDeleteEntry() {
   }
 
   recomputeTags(); saveAll();
+  
+  // Add to operation queue for sync (for local/file mode)
+  if (window.OperationQueue && MODE !== 'server') {
+    console.log('📋 Adding delete operation to queue:', id);
+    await window.OperationQueue.addOperation('delete', id);
+  }
+  
   els.detailDlg?.close(); 
   renderFeed();
   updateRecycleBinBadge();
@@ -1703,6 +1798,7 @@ async function coreInit() {
       const persisted = await idbGet(IDB_KEY_ROOT);
       if (persisted && await ensurePermission(persisted, 'read')) {
         await loadFromFolder(persisted);
+        initChatUI(); // Initialize Chat before returning
         return;
       }
     } catch (e) { console.warn('No persisted folder or cannot restore:', e); }
@@ -2050,6 +2146,44 @@ function createChatMsgElement(msg) {
   const bubble = document.createElement('div');
   bubble.className = 'chat-bubble';
   bubble.textContent = msg.content || '';
+  
+  // Add file attachments if present
+  if (msg.files && msg.files.length > 0) {
+    const filesDiv = document.createElement('div');
+    filesDiv.style.marginTop = '8px';
+    filesDiv.style.display = 'flex';
+    filesDiv.style.gap = '8px';
+    filesDiv.style.flexWrap = 'wrap';
+    
+    msg.files.forEach(fileUrl => {
+      const fileBtn = document.createElement('button');
+      fileBtn.className = 'ghost';
+      fileBtn.style.padding = '4px 8px';
+      fileBtn.style.fontSize = '11px';
+      
+      const fileName = fileUrl.split('/').pop();
+      const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(fileUrl);
+      
+      fileBtn.textContent = `${isImage ? '🖼️' : '📎'} ${fileName}`;
+      fileBtn.onclick = () => {
+        if (isImage) {
+          // Open in lightbox if available
+          if (window.openImagePreview) {
+            window.openImagePreview(fileUrl);
+          } else {
+            window.open((API_BASE || '') + fileUrl, '_blank');
+          }
+        } else {
+          window.open((API_BASE || '') + fileUrl, '_blank');
+        }
+      };
+      
+      filesDiv.appendChild(fileBtn);
+    });
+    
+    bubble.appendChild(filesDiv);
+  }
+  
   wrap.appendChild(role);
   wrap.appendChild(bubble);
   return wrap;
@@ -2076,30 +2210,145 @@ function setChatDisabled(disabled, hint) {
 }
 
 function initChatUI() {
+  console.log('💬 initChatUI called');
+  if (!els.chatBtn) console.warn('💬 chatBtn not found in DOM');
+  if (!els.chatDlg) console.warn('💬 chatDlg not found in DOM');
+  if (!els.chatHistory) console.warn('💬 chatHistory not found in DOM');
+
   if (!els.chatBtn || !els.chatDlg || !els.chatHistory) return;
 
-  async function openChat() {
-    els.chatHistory.innerHTML = '';
-    if (MODE === 'server') {
+  // Setup file upload button for AI entry creation
+  const chatAddFileBtn = document.getElementById('chatAddFileBtn');
+  const chatFileInput = document.getElementById('chatFileInput');
+  
+  if (chatAddFileBtn && chatFileInput) {
+    // Only show if server is connected
+    const hasRemoteServer = MODE === 'server' || (API_BASE && API_BASE.trim() !== '');
+    chatAddFileBtn.style.display = hasRemoteServer ? 'flex' : 'none';
+    
+    chatAddFileBtn.addEventListener('click', () => {
+      chatFileInput.click();
+    });
+    
+    chatFileInput.addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+      
       try {
-        const history = await ServerAPI.chatList();
-        renderChatHistory(history);
+        setChatDisabled(true, 'Creating entry from files...');
+        const result = await ServerAPI.chatCreateEntry(files);
+        
+        // Render the new messages
+        if (result.messages) {
+          result.messages.forEach(msg => {
+            els.chatHistory.appendChild(createChatMsgElement(msg));
+          });
+        }
+        
+        // Refresh feed to show new entry
+        if (result.entry && window.MemoCore && window.MemoCore.getState) {
+          const { db } = window.MemoCore.getState();
+          db.entries.unshift(result.entry);
+          if (window.MemoCore.renderFeed) window.MemoCore.renderFeed();
+        }
+        
+        els.chatHistory.scrollTop = els.chatHistory.scrollHeight;
+        setChatDisabled(false);
+      } catch (err) {
+        console.error('Failed to create entry from files:', err);
+        const errMsg = { role: 'assistant', content: `Failed to create entry: ${err.message}` };
+        els.chatHistory.appendChild(createChatMsgElement(errMsg));
+        setChatDisabled(false);
+      }
+      
+      // Clear input
+      e.target.value = '';
+    });
+  }
+
+  async function openChat() {
+    console.log('💬 openChat clicked');
+    els.chatHistory.innerHTML = '<div class="muted" style="padding:10px;text-align:center">Loading chat...</div>';
+    els.chatDlg.showModal();
+    console.log('💬 chatDlg shown');
+    
+    // Use server chat if we have a remote server configured (MODE === 'server' OR API_BASE is set)
+    const hasRemoteServer = MODE === 'server' || (API_BASE && API_BASE.trim() !== '');
+    console.log(`💬 Chat mode: ${hasRemoteServer ? 'SERVER' : 'LOCAL'} (MODE=${MODE}, API_BASE=${API_BASE})`);
+    
+    if (hasRemoteServer) {
+      try {
+        console.log('💬 Fetching server chat history...');
+        const serverHistory = await ServerAPI.chatList();
+        console.log(`💬 Server returned ${serverHistory ? serverHistory.length : 0} messages`);
+        
+        let finalHistory = serverHistory || [];
+
+        // Sync/Merge server history to local storage
+        if (settings.fsEnabled || (window.MODE === 'capacitor')) {
+          try {
+             console.log('💬 Reading local chat for merge...');
+             const localHistory = await LocalChat.list();
+             if (localHistory && localHistory.length > 0) {
+                 const map = new Map();
+                 localHistory.forEach(m => { if(m && m.id) map.set(m.id, m); });
+                 (serverHistory || []).forEach(m => { if(m && m.id) map.set(m.id, m); });
+                 
+                 finalHistory = Array.from(map.values()).sort((a, b) => {
+                     const ta = a.ts || ''; 
+                     const tb = b.ts || '';
+                     if (ta < tb) return -1;
+                     if (ta > tb) return 1;
+                     return 0;
+                 });
+                 console.log(`💬 Merged Local(${localHistory.length}) + Server(${serverHistory ? serverHistory.length : 0}) -> ${finalHistory.length}`);
+             }
+             console.log('💬 Syncing merged chat to local storage');
+             LocalChat.save(finalHistory).catch(err => console.warn('Failed to sync chat to local:', err));
+          } catch (merr) {
+             console.warn('💬 Chat merge warning:', merr);
+             // Fallback to just saving server history if read fails
+             LocalChat.save(finalHistory).catch(e=>e);
+          }
+        }
+        
+        renderChatHistory(finalHistory);
         setChatDisabled(false);
       } catch (e) {
-        renderChatHistory([]);
-        setChatDisabled(true, 'Unable to load chat history.');
+        console.error('💬 Failed to load server chat:', e);
+        // Fallback: load local history if server fails
+        try {
+           console.log('💬 Attempting fallback to local history');
+           const local = await LocalChat.list();
+           if (local && local.length) {
+              console.log(`💬 Local fallback has ${local.length} messages`);
+              renderChatHistory(local);
+              setChatDisabled(true, 'Server unreachable. Showing local history (read-only).');
+           } else {
+              console.log('💬 Local fallback empty');
+              renderChatHistory([]);
+              setChatDisabled(true, 'Unable to load chat history. Server might be unreachable.');
+           }
+        } catch(ex) {
+           console.error('💬 Local fallback failed:', ex);
+           renderChatHistory([]);
+           setChatDisabled(true, 'Unable to load chat history.');
+        }
       }
     } else {
       try {
+        console.log('💬 Fetching local chat history...');
         const history = await LocalChat.list();
+        console.log(`💬 Local returned ${history ? history.length : 0} messages`);
         renderChatHistory(history);
         setChatDisabled(false);
       } catch (e) {
+        console.error('💬 Failed to load local chat:', e);
         renderChatHistory([]);
         setChatDisabled(true, 'Chat unavailable.');
       }
     }
-    els.chatDlg.showModal();
+    
     if (!els.chatInput.disabled) {
       els.chatInput.focus();
     }
@@ -2115,12 +2364,38 @@ function initChatUI() {
     els.chatHistory.scrollTop = els.chatHistory.scrollHeight;
     els.chatInput.value = '';
     els.chatInput.disabled = true; els.chatSendBtn.disabled = true;
+    
+    // Use server chat if we have a remote server configured (MODE === 'server' OR API_BASE is set)
+    const hasRemoteServer = MODE === 'server' || (API_BASE && API_BASE.trim() !== '');
+    
     try {
-      if (MODE === 'server') {
+      if (hasRemoteServer) {
         const res = await ServerAPI.chatSend(text);
         const msgs = res && res.messages ? res.messages : [];
         const assistant = msgs.find(m => m.role === 'assistant');
         if (assistant) els.chatHistory.appendChild(createChatMsgElement(assistant));
+        
+        // Sync new state to local storage with MERGE logic
+        ServerAPI.chatList().then(async serverHistory => {
+             try {
+                const localHistory = await LocalChat.list();
+                const map = new Map();
+                (localHistory || []).forEach(m => { if(m && m.id) map.set(m.id, m); });
+                (serverHistory || []).forEach(m => { if(m && m.id) map.set(m.id, m); });
+                 
+                const merged = Array.from(map.values()).sort((a, b) => {
+                     const ta = a.ts || ''; const tb = b.ts || '';
+                     if (ta < tb) return -1;
+                     if (ta > tb) return 1;
+                     return 0;
+                });
+                await LocalChat.save(merged);
+             } catch (e) {
+                console.warn('Background chat merge failed', e);
+                if (serverHistory) LocalChat.save(serverHistory).catch(e=>e);
+             }
+        }).catch(e => console.warn('Background chat sync failed', e));
+
       } else {
         const { messages } = await LocalChat.send(text);
         const assistant = messages.find(m => m.role === 'assistant');
@@ -2128,6 +2403,7 @@ function initChatUI() {
       }
       els.chatHistory.scrollTop = els.chatHistory.scrollHeight;
     } catch (e) {
+      console.error('Failed to send chat message:', e);
       const errMsg = { role: 'assistant', content: 'Failed to send. Please try again.' };
       els.chatHistory.appendChild(createChatMsgElement(errMsg));
     } finally {
@@ -2137,8 +2413,17 @@ function initChatUI() {
   }
 
   async function doClear() {
+    // Use server chat if we have a remote server configured (MODE === 'server' OR API_BASE is set)
+    const hasRemoteServer = MODE === 'server' || (API_BASE && API_BASE.trim() !== '');
+    
     try {
-      if (MODE === 'server') await ServerAPI.chatClear(); else await LocalChat.clear();
+      if (hasRemoteServer) {
+        await ServerAPI.chatClear(); 
+        // Also clear local copy
+        await LocalChat.clear();
+      } else {
+        await LocalChat.clear();
+      }
       els.chatHistory.innerHTML = '';
     } catch (e) {
       const m = { role: 'assistant', content: 'Failed to clear history.' };
@@ -2211,6 +2496,33 @@ const LocalChat = {
     }
     return { messages: [user, bot] };
   },
+  async save(messages) {
+    if (MODE === 'capacitor' && CapFS.ready()) {
+      try {
+        await (window.Capacitor.Plugins?.Filesystem || window.Capacitor.Filesystem).writeFile({
+          path: chatDataFileName(),
+          data: JSON.stringify(messages, null, 2),
+          directory: CapFS.Directory.Data,
+          encoding: 'utf8',
+          recursive: true
+        });
+      } catch (e) { console.warn('Capacitor chat save failed', e); }
+      return;
+    }
+    if (settings.fsEnabled && settings.memoDirHandle) {
+      const canWrite = await ensureWritePermission(settings.memoDirHandle);
+      if (canWrite) {
+        const fh = await settings.memoDirHandle.getFileHandle(chatDataFileName(), { create: true });
+        const w = await fh.createWritable();
+        await w.write(JSON.stringify(messages, null, 2));
+        await w.close();
+      } else {
+        localStorage.setItem(CHAT_KEY, JSON.stringify(messages));
+      }
+    } else {
+      localStorage.setItem(CHAT_KEY, JSON.stringify(messages));
+    }
+  },
   async clear() {
     if (MODE === 'capacitor' && CapFS.ready()) {
       try {
@@ -2230,5 +2542,33 @@ const LocalChat = {
       localStorage.setItem(CHAT_KEY, JSON.stringify([]));
     }
     return [];
+  },
+  // Explicitly save messages to local storage/FS (e.g. sync from server)
+  async save(messages) {
+    if (!messages || !Array.isArray(messages)) return;
+    
+    if (MODE === 'capacitor' && CapFS.ready()) {
+      try {
+        const txt = JSON.stringify(messages, null, 2);
+        await (window.Capacitor.Plugins?.Filesystem || window.Capacitor.Filesystem).writeFile({ path: chatDataFileName(), data: txt, directory: CapFS.Directory.Data, encoding: 'utf8', recursive: true });
+      } catch (e) { console.warn('LocalChat save failed (Capacitor)', e); }
+      return;
+    }
+    
+    if (settings.fsEnabled && settings.memoDirHandle) {
+      try {
+        const canWrite = await ensureWritePermission(settings.memoDirHandle);
+        if (canWrite) {
+          const fh = await settings.memoDirHandle.getFileHandle(chatDataFileName(), { create: true });
+          const w = await fh.createWritable(); 
+          await w.write(JSON.stringify(messages, null, 2)); 
+          await w.close();
+        } else {
+          localStorage.setItem(CHAT_KEY, JSON.stringify(messages));
+        }
+      } catch (e) { console.warn('LocalChat save failed (FS)', e); }
+    } else {
+      try { localStorage.setItem(CHAT_KEY, JSON.stringify(messages)); } catch(e) {}
+    }
   }
 };

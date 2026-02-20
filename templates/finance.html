@@ -68,8 +68,15 @@
                 }
             } else {
                 // File protocol or other - local mode
-                window.API_BASE = '';
-                console.log('📁 Local/File mode: API_BASE = (empty)');
+                var serverUrl = localStorage.getItem('memo_server_url');
+                if (serverUrl && serverUrl.trim()) {
+                    window.API_BASE = serverUrl.trim();
+                    console.log('📁 Local/File mode: API_BASE =', window.API_BASE);
+                } else {
+                   // Default to localhost:5050 if nothing set, to help with local testing
+                   window.API_BASE = 'http://localhost:5050';
+                   console.log('📁 Local/File mode: Defaulting API_BASE to', window.API_BASE);
+                }
             }
             
             var hasServer = isHttps || isHttp;
@@ -90,7 +97,7 @@
             <div class="brand-dropdown">
                 <button class="brand" onclick="document.getElementById('brandMenu').classList.toggle('show')">💸 Finance ▾</button>
                 <div id="brandMenu" class="dropdown-content">
-                    <a href="">🗂️ Memo</a>
+                    <a href="index.html">🗂️ Memo</a>
                     <a href="finance.html">💸 Finance</a>
                 </div>
             </div>
@@ -121,6 +128,7 @@
             <h3>Menu</h3>
             <button id="mobileMenuClose">✕</button>
         </div>
+        <button id="mobileExportPdfBtn" title="Export to PDF">📄 Export to PDF</button>
         <button id="mobileChatBtn" title="Ask questions">Chat</button>
         <button id="mobileFiltersBtn" title="More filters">Filters</button>
         <button id="mobileCalendarBtn" title="Open calendar">Calendar</button>
@@ -164,9 +172,11 @@
             </header>
             <div class="content">
                 <div id="chatHistory" class="chat-history"></div>
-                <div class="chat-input">
-                    <input id="chatInput" type="text" placeholder="Type your question..." />
-                    <button id="chatSendBtn" class="primary">Send</button>
+                <div class="chat-input" style="display:flex;gap:8px;align-items:center;">
+                    <button id="chatAddFileBtn" title="Upload file for AI analysis" style="padding:0;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--accent);color:var(--bg);border:none;font-size:20px;font-weight:bold;cursor:pointer;flex-shrink:0;">+</button>
+                    <input id="chatFileInput" type="file" accept="image/*,.pdf,.txt,.doc,.docx" multiple style="display:none;" />
+                    <input id="chatInput" type="text" placeholder="Type your question..." style="flex:1;" />
+                    <button id="chatSendBtn" class="primary" style="flex-shrink:0;">Send</button>
                 </div>
             </div>
         </div>
@@ -463,6 +473,41 @@
         </div>
     </dialog>
 
+    <!-- Export PDF Dialog -->
+    <dialog id="exportPdfDlg">
+        <div class="modal">
+            <header>
+                <strong>📄 Export to PDF</strong>
+            </header>
+            <div class="content">
+                <div class="row">
+                    <label for="pdfExportMode">Export mode</label>
+                    <select id="pdfExportMode">
+                        <option value="quick">Quick (client-side)</option>
+                        <option value="detailed">Detailed (server required)</option>
+                    </select>
+                    <div class="muted" id="pdfExportModeHint" style="margin-top:6px;font-size:12px;">Quick mode uses browser print-to-PDF.</div>
+                </div>
+                <div class="row">
+                    <label for="pdfExportPageSize">Page size</label>
+                    <select id="pdfExportPageSize">
+                        <option value="A4">A4</option>
+                        <option value="LETTER">Letter</option>
+                        <option value="LEGAL">Legal</option>
+                    </select>
+                </div>
+                <div class="row">
+                    <div id="pdfExportStatus" class="muted" style="font-size:12px;"></div>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="ghost" id="pdfExportCancelBtn">Cancel</button>
+                <span class="spacer"></span>
+                <button class="primary" id="pdfExportRunBtn">Export</button>
+            </div>
+        </div>
+    </dialog>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>
         (function(){
@@ -471,7 +516,9 @@
             var files = [
                 'memo-debug.js',
                 'memo-theme.js',
+                'memo-export.js',
                 'memo-settings.js',
+                'memo-operation-queue.js',
                 'memo-sync.js',
                 'memo-core.js',
                 'memo-variant-finance.js',

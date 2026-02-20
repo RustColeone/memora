@@ -612,6 +612,7 @@ async function onSaveEntry() {
 
     let entry = editingId ? db.entries.find(e => e.id === editingId) : { id: uid(), images: [] };
     const isNew = !editingId;
+    const oldEntry = isNew ? null : { ...entry }; // Save old state for operation queue
     entry.description = description;
     entry.category = category;
     entry.tags = tags;
@@ -676,6 +677,28 @@ async function onSaveEntry() {
             if (i >= 0) db.entries[i] = entry;
         }
         recomputeTags(); saveAll();
+        
+        // Add to operation queue for sync
+        if (window.OperationQueue) {
+            if (isNew) {
+                await window.OperationQueue.addOperation('create', entry.id, {
+                    description: entry.description,
+                    category: entry.category,
+                    tags: entry.tags,
+                    ts: entry.ts,
+                    images: entry.images || [],
+                    _storedPaths: entry._storedPaths || []
+                });
+            } else {
+                await window.OperationQueue.addOperation('update', entry.id, {
+                    description: entry.description,
+                    category: entry.category,
+                    tags: entry.tags,
+                    images: entry.images || [],
+                    _storedPaths: entry._storedPaths || []
+                });
+            }
+        }
     }
 
     if (els.entryDlg) els.entryDlg.close();
@@ -692,6 +715,12 @@ async function onDeleteEntry() {
     }
     db.entries = db.entries.filter(e => e.id !== id);
     recomputeTags(); saveAll();
+    
+    // Add to operation queue for sync
+    if (window.OperationQueue) {
+        await window.OperationQueue.addOperation('delete', id);
+    }
+    
     els.detailDlg.close(); renderFeed();
 }
 

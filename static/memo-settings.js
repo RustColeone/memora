@@ -40,11 +40,52 @@
     const isServerMode = MODE === 'server';
     const isCapacitorMode = window.CAP_BOOT || window.__CAP_MODE__;
 
+    // Customize UI based on Mode
+    function updateBackupUI() {
+        const MODE = window.MODE || 'local';
+        const exportBtn = document.getElementById('exportDataBtn');
+        const importInput = document.getElementById('importDataInput');
+        const importLabel = document.querySelector('label[for="importDataInput"]');
+        const importNote = importLabel ? importLabel.nextElementSibling : null;
+
+        if (MODE === 'server') {
+            // Server: Only Download Backup (Export), No Import
+            if (exportBtn) {
+                exportBtn.hidden = false;
+                exportBtn.textContent = '📥 Download Server Backup (.zip)';
+            }
+            if (importLabel) importLabel.style.display = 'none'; // Hide Import
+            if (importNote) importNote.style.display = 'none';
+        } else if (MODE === 'capacitor') {
+            // Capacitor: Enable Export to Zip (save to device)
+            if (exportBtn) {
+                exportBtn.hidden = false; 
+                exportBtn.textContent = '📥 Export Data to Zip';
+            }
+            if (importLabel) importLabel.style.display = 'none'; // Import manually via folder usually
+            if (importNote) {
+               importNote.style.display = 'block';
+               importNote.textContent = 'Export creates a zip file in your Documents folder.';
+            }
+        } else if (MODE === 'local') {
+            // Local (Desktop): Direct access instructions
+            if (exportBtn) exportBtn.hidden = true;
+            if (importLabel) importLabel.style.display = 'none';
+            if (importNote) {
+                importNote.style.display = 'block';
+                importNote.innerHTML = '<strong>Data Backup:</strong> Your data is stored directly in your device folder.<br>To backup, simply copy the entire folder to a safe location.<br><br>No import/export needed!';
+                importNote.className = 'info';
+            }
+        }
+    }
+
     // Open settings dialog
     function openSettings() {
       // Load current server URL
       const savedUrl = localStorage.getItem('memo_server_url') || '';
       if (serverUrlInput) serverUrlInput.value = savedUrl;
+      
+      updateBackupUI(); // Apply the mode-specific visibility rules
       
       // Update folder status
       if (folderStatus && window.MemoCore && window.MemoCore.getState) {
@@ -231,6 +272,20 @@
 
     // Export all data
     async function handleExportData() {
+      // If server mode, simple download from /api/backup
+      if (window.MODE === 'server') {
+          showStatus(importExportStatus, 'Requesting server backup...', 'info');
+          const backupLink = document.createElement('a');
+          backupLink.href = (window.API_BASE || '') + '/api/backup';
+          backupLink.target = '_blank';
+          backupLink.download = 'backup.zip';
+          document.body.appendChild(backupLink);
+          backupLink.click();
+          setTimeout(() => document.body.removeChild(backupLink), 2000);
+          showStatus(importExportStatus, '✓ Backup download started.', 'success');
+          return;
+      }
+
       try {
         showStatus(importExportStatus, 'Preparing export...', 'info');
 
@@ -279,12 +334,17 @@
         for (const entry of allEntries) {
           // Images
           if (entry.images && Array.isArray(entry.images)) {
-            for (const imgUrl of entry.images) {
+            entry.images.forEach((imgUrl, idx) => {
               if (imgUrl && !processedFiles.has(imgUrl)) {
                 processedFiles.add(imgUrl);
-                filesToDownload.push({ url: imgUrl, type: 'image' });
+                // Try to find original path for structure preservation
+                let originalPath = null;
+                if (entry._storedPaths && entry._storedPaths[idx]) {
+                    originalPath = entry._storedPaths[idx];
+                }
+                filesToDownload.push({ url: imgUrl, type: 'image', originalPath: originalPath });
               }
-            }
+            });
           }
           
           // Attachments
@@ -293,7 +353,9 @@
               const attUrl = att.url || att;
               if (attUrl && !processedFiles.has(attUrl)) {
                 processedFiles.add(attUrl);
-                filesToDownload.push({ url: attUrl, type: 'attachment', name: att.name || null });
+                // Try to find original path
+                let originalPath = att.storedPath || (typeof att === 'string' && att.startsWith('uploads/') ? att : null);
+                filesToDownload.push({ url: attUrl, type: 'attachment', name: att.name || null, originalPath: originalPath });
               }
             }
           }
@@ -308,8 +370,15 @@
             // Determine the path in the zip
             // Expected format: /uploads/YYYY-MM-DD/filename.ext
             let zipPath = '';
-            
-            if (fileUrl.startsWith('/uploads/') || fileUrl.startsWith('uploads/')) {
+
+            if (fileInfo.originalPath) {
+                 // Use stored path if available (preserves folder structure)
+                 // Clean path (remove leading slash)
+                 let clean = fileInfo.originalPath.startsWith('/') ? fileInfo.originalPath.substring(1) : fileInfo.originalPath;
+                 // Ensure it starts with uploads/
+                 if (!clean.startsWith('uploads/')) clean = 'uploads/' + clean;
+                 zipPath = clean;
+            } else if (fileUrl.startsWith('/uploads/') || fileUrl.startsWith('uploads/')) {
               // Server mode - extract path from URL
               zipPath = fileUrl.replace(/^\//, ''); // Remove leading slash
             } else if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
@@ -385,22 +454,46 @@
 
         // Generate zip file
         const content = await zip.generateAsync({ 
-          type: 'blob',
+          type: 'base64', // Change to base64 for Capacitor write
           compression: 'DEFLATE',
           compressionOptions: { level: 6 }
         });
 
-        // Download the zip
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
         const filename = `memoSystem-backup-${timestamp}.zip`;
         
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(content);
-        link.download = filename;
-        link.click();
-        URL.revokeObjectURL(link.href);
-
-        showStatus(importExportStatus, `✓ Export complete! Downloaded ${downloadedCount} files in ${filename}`, 'success');
+        // Capacitor Save
+        if (isCapacitorMode) {
+             try {
+                 const Filesystem = window.Capacitor.Plugins?.Filesystem || window.Capacitor.Filesystem;
+                 // Write to Documents folder
+                 await Filesystem.writeFile({
+                     path: filename,
+                     data: content,
+                     directory: 'DOCUMENTS', // Directory.Documents
+                     recursive: true
+                 });
+                 showStatus(importExportStatus, `✓ Saved to Documents/${filename}`, 'success');
+             } catch (capErr) {
+                 console.warn('Capacitor write failed, trying file share...', capErr);
+                 // Fallback to Share or file opener could be implemented logic here
+                 // For now, try browser download shim if write fails (might not work well on all webviews)
+                 const blob = await zip.generateAsync({ type: 'blob' });
+                 const link = document.createElement('a');
+                 link.href = URL.createObjectURL(blob);
+                 link.download = filename;
+                 link.click();
+             }
+        } else {
+             // Browser Download
+             const blob = await zip.generateAsync({ type: 'blob' });
+             const link = document.createElement('a');
+             link.href = URL.createObjectURL(blob);
+             link.download = filename;
+             link.click();
+             URL.revokeObjectURL(link.href);
+             showStatus(importExportStatus, `✓ Export complete! Downloaded ${filename}`, 'success');
+        }
       } catch (error) {
         console.error('Export error:', error);
         showStatus(importExportStatus, `✗ Export failed: ${error.message}`, 'error');

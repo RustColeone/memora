@@ -15,14 +15,33 @@ const SyncManager = {
    * Initialize the sync manager
    */
   async init() {
+    console.log('📡 Sync Manager: Initializing...');
+    console.log('   API_BASE:', window.API_BASE || '(empty - same origin)');
+    console.log('   Protocol:', window.location.protocol);
+    
     // Only initialize sync if we have a remote server configured
     const hasRemoteServer = window.API_BASE && window.API_BASE.trim() !== '';
     if (!hasRemoteServer) {
       console.log('📡 Sync Manager: No remote server configured, sync disabled');
+      console.log('   Running in server mode (same origin) - no sync needed');
+      
+      // Still initialize operation queue for local tracking
+      if (window.OperationQueue) {
+        console.log('📋 Initializing Operation Queue for local use...');
+        window.OperationQueue.init();
+      }
       return;
     }
     
     console.log('📡 Sync Manager: Initializing with remote server:', window.API_BASE);
+    
+    // Initialize operation queue (new event sourcing system)
+    if (window.OperationQueue) {
+      window.OperationQueue.init();
+      console.log('📋 Operation Queue initialized for event sourcing');
+    } else {
+      console.warn('⚠️ OperationQueue not found - using legacy sync');
+    }
     
     // Clear any existing interval to avoid duplicates
     if (this.syncState.autoSyncInterval) {
@@ -43,7 +62,7 @@ const SyncManager = {
       }
     }
     
-    // Auto-sync every 5 minutes
+    // Auto-sync every 5 minutes (delegates to OperationQueue if available)
     this.syncState.autoSyncInterval = setInterval(() => {
       this.performSync();
     }, 5 * 60 * 1000);
@@ -99,6 +118,19 @@ const SyncManager = {
       return;
     }
     
+    // Use new operation queue if available
+    if (window.OperationQueue && window.OperationQueue.processQueue) {
+      console.log('🔄 Using event sourcing operation queue...');
+      try {
+        await window.OperationQueue.processQueue();
+        return; // Operation queue handles everything
+      } catch (err) {
+        console.error('❌ Operation queue failed, falling back to legacy sync:', err);
+        // Fall through to legacy sync
+      }
+    }
+    
+    // Legacy sync (kept for backward compatibility)
     this.syncState.isSyncing = true;
     this.updateSyncUI('syncing', 'Syncing...');
     
@@ -811,17 +843,24 @@ const SyncManager = {
    * Keeps server paths in JSON, writes actual files to disk
    */
   async downloadAssets(entry) {
+    console.log(`📥 downloadAssets called for entry ${entry.id}`);
+    
     const apiBase = (window.API_BASE || '').replace(/\/$/, '');
     const isFileProtocol = window.location.protocol === 'file:';
     const needsDownload = isFileProtocol || !navigator.onLine;
     
+    console.log(`📥 Download check: protocol=${window.location.protocol}, apiBase="${apiBase}", needsDownload=${needsDownload}`);
+    
     // Skip downloading if we're on https and online
     if (!needsDownload && window.location.protocol === 'https:') {
+      console.log('📥 Skipping download - https and online');
       return entry;
     }
     
     const { settings } = window.MemoCore.getState();
     const fsEnabled = settings.fsEnabled && settings.memoDirHandle;
+    
+    console.log(`📥 File system: fsEnabled=${settings.fsEnabled}, hasHandle=${!!settings.memoDirHandle}`);
     
     // If no folder selected, can't download
     if (!fsEnabled) {
@@ -887,85 +926,143 @@ const SyncManager = {
     
     // Download images and save to local folder
     if (entry.images && entry.images.length > 0) {
+      console.log(`📥 Entry has ${entry.images.length} images to download:`, entry.images);
       const storedPaths = [];
       
       for (const imgUrl of entry.images) {
         try {
+          console.log(`📥 Processing image: ${imgUrl}`);
+          
           // Parse the server path: /uploads/2025-09-21/2048_Ferrites_Long.jpg
           // Server format: /uploads/DATE/FILENAME
           // Local format: DATE/FILENAME (no /uploads prefix)
           const match = imgUrl.match(/\/uploads\/([^\/]+)\/(.+)/);
           if (!match) {
-            console.warn(`Invalid image path format: ${imgUrl}`);
+            console.warn(`❌ Invalid image path format: ${imgUrl}`);
             continue;
           }
           
           const dateFolder = match[1]; // e.g., "2025-09-21"
           const filename = match[2];   // e.g., "2048_Ferrites_Long.jpg" - keep original name!
+          console.log(`📥 Parsed: folder=${dateFolder}, file=${filename}`);
           
           // Construct full URL for download
-          const fullUrl = `${apiBase}${imgUrl}`;
+          // Check if URL is already absolute (starts with http:// or https://)
+          const fullUrl = imgUrl.startsWith('http://') || imgUrl.startsWith('https://') 
+            ? imgUrl 
+            : `${apiBase}${imgUrl}`;
+          console.log(`📥 Downloading from: ${fullUrl}`);
           
           const blob = await downloadBlob(fullUrl);
-          if (!blob) continue;
+          if (!blob) {
+            console.error(`❌ Failed to download blob from ${fullUrl}`);
+            continue;
+          }
+          console.log(`✅ Downloaded blob, size: ${blob.size} bytes`);
           
-          // Write to local folder with same structure (no /uploads prefix)
-          const dateDir = await getOrCreateDir(settings.memoDirHandle, dateFolder);
-          if (!dateDir) continue;
+          // Write to local folder with same structure (uploads/DATE/filename)
+          const uploadsDir = await getOrCreateDir(settings.memoDirHandle, 'uploads');
+          if (!uploadsDir) {
+            console.error(`❌ Failed to create directory: uploads`);
+            continue;
+          }
+          
+          const dateDir = await getOrCreateDir(uploadsDir, dateFolder);
+          if (!dateDir) {
+            console.error(`❌ Failed to create directory: uploads/${dateFolder}`);
+            continue;
+          }
+          console.log(`✅ Directory ready: uploads/${dateFolder}`);
           
           const written = await writeFileToFS(dateDir, filename, blob);
           if (written) {
-            // Store as relative path: "2025-09-21/2048_Ferrites_Long.jpg"
-            const storedPath = `${dateFolder}/${filename}`;
+            // Store as relative path: "uploads/2025-09-21/2048_Ferrites_Long.jpg"
+            const storedPath = `uploads/${dateFolder}/${filename}`;
             storedPaths.push(storedPath);
+            console.log(`✅ Saved to local storage: ${storedPath}`);
+          } else {
+            console.error(`❌ Failed to write file: ${filename}`);
           }
         } catch (error) {
-          // Skip failed downloads silently
+          console.error(`❌ Error downloading image ${imgUrl}:`, error);
         }
       }
+      
+      console.log(`📥 Downloaded ${storedPaths.length} of ${entry.images.length} images`);
       
       // Keep original server paths in images array
       // Store local paths in _storedPaths for rendering
       if (storedPaths.length > 0) {
         entry._storedPaths = storedPaths;
+        console.log(`✅ Set _storedPaths:`, storedPaths);
       }
+    } else {
+      console.log(`📥 Entry has no images to download`);
     }
     
     // Download attachments and save to local folder
     if (entry.attachments && entry.attachments.length > 0) {
+      console.log(`📥 Entry has ${entry.attachments.length} attachments to download`);
+      
       for (const attachment of entry.attachments) {
         try {
           const attUrl = attachment.url;
+          console.log(`📥 Processing attachment: ${attUrl}`);
           
           // Parse the server path: /uploads/2025-09-27/file.pdf
           const match = attUrl.match(/\/uploads\/([^\/]+)\/(.+)/);
           if (!match) {
+            console.warn(`❌ Invalid attachment path format: ${attUrl}`);
             continue;
           }
           
           const dateFolder = match[1];
           const filename = match[2]; // Keep original filename!
+          console.log(`📥 Parsed: folder=${dateFolder}, file=${filename}`);
           
           // Construct full URL for download
-          const fullUrl = `${apiBase}${attUrl}`;
+          // Check if URL is already absolute (starts with http:// or https://)
+          const fullUrl = attUrl.startsWith('http://') || attUrl.startsWith('https://') 
+            ? attUrl 
+            : `${apiBase}${attUrl}`;
+          console.log(`📥 Downloading from: ${fullUrl}`);
           
           const blob = await downloadBlob(fullUrl);
-          if (!blob) continue;
+          if (!blob) {
+            console.error(`❌ Failed to download blob from ${fullUrl}`);
+            continue;
+          }
+          console.log(`✅ Downloaded blob, size: ${blob.size} bytes`);
           
-          // Write to local folder with same structure (no /uploads prefix)
-          const dateDir = await getOrCreateDir(settings.memoDirHandle, dateFolder);
-          if (!dateDir) continue;
+          // Write to local folder with same structure (uploads/DATE/filename)
+          const uploadsDir = await getOrCreateDir(settings.memoDirHandle, 'uploads');
+          if (!uploadsDir) {
+            console.error(`❌ Failed to create directory: uploads`);
+            continue;
+          }
+
+          const dateDir = await getOrCreateDir(uploadsDir, dateFolder);
+          if (!dateDir) {
+            console.error(`❌ Failed to create directory: uploads/${dateFolder}`);
+            continue;
+          }
+          console.log(`✅ Directory ready: uploads/${dateFolder}`);
           
           const written = await writeFileToFS(dateDir, filename, blob);
           if (written) {
-            // Store as relative path: "2025-09-27/file.pdf"
-            const storedPath = `${dateFolder}/${filename}`;
+            // Store as relative path: "uploads/2025-09-27/file.pdf"
+            const storedPath = `uploads/${dateFolder}/${filename}`;
             attachment.storedPath = storedPath;
+            console.log(`✅ Saved attachment to local storage: ${storedPath}`);
+          } else {
+            console.error(`❌ Failed to write attachment: ${filename}`);
           }
         } catch (error) {
-          // Skip failed downloads silently
+          console.error(`❌ Error downloading attachment:`, error);
         }
       }
+    } else {
+      console.log(`📥 Entry has no attachments to download`);
     }
     
     return entry;

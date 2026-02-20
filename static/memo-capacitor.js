@@ -33,6 +33,7 @@
 			var files = [
 				'memo-debug.js',
 				'memo-theme.js',
+				'memo-export.js',
 				'memo-settings.js',
 				'memo-sync.js',
 				'memo-core.js',
