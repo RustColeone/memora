@@ -3,6 +3,15 @@
 (function() {
   'use strict';
 
+  const Contracts = window.MemoContracts || null;
+  const Runtime = window.MemoRuntime || null;
+  const getMode = () => Contracts ? Contracts.getMode() : (window.MODE || 'local');
+  const setMode = (mode) => Contracts ? Contracts.setMode(mode) : (window.MODE = mode);
+  const getApiBase = () => Runtime ? Runtime.getApiBase() : (Contracts ? Contracts.getApiBase() : '');
+  const setApiBase = (value) => Runtime ? Runtime.setApiBase(value) : (Contracts ? Contracts.setApiBase(value) : String(value || '').trim());
+  const getVariant = () => Contracts ? Contracts.getVariant() : (window.MEMO_VARIANT || 'default');
+  const getServerAPI = () => Runtime ? Runtime.getServerAPI() : ((Contracts && Contracts.getService('serverApi')) || null);
+
   // Wait for DOM and dependencies
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
@@ -36,13 +45,11 @@
     if (!settingsDlg) return;
 
     // Determine mode
-    const MODE = window.MODE || 'local';
-    const isServerMode = MODE === 'server';
     const isCapacitorMode = window.CAP_BOOT || window.__CAP_MODE__;
 
     // Customize UI based on Mode
     function updateBackupUI() {
-        const MODE = window.MODE || 'local';
+        const MODE = getMode();
         const exportBtn = document.getElementById('exportDataBtn');
         const importInput = document.getElementById('importDataInput');
         const importLabel = document.querySelector('label[for="importDataInput"]');
@@ -81,6 +88,7 @@
 
     // Open settings dialog
     function openSettings() {
+      const isServerMode = getMode() === 'server';
       // Load current server URL
       const savedUrl = localStorage.getItem('memo_server_url') || '';
       if (serverUrlInput) serverUrlInput.value = savedUrl;
@@ -181,22 +189,23 @@
       localStorage.setItem('memo_server_url', url);
       
       // Update global API_BASE immediately
-      window.API_BASE = url;
+      setApiBase(url);
       
       showStatus(serverUrlStatus, '⏳ Connecting to server and initializing sync...', 'info');
       
       // Switch to server mode and initialize sync
       try {
-        window.MODE = 'server';
+        setMode('server');
         
         // Reset sync state to force a full sync
-        const variant = window.MEMO_VARIANT || 'default';
+        const variant = getVariant();
         const stateKey = `memo_sync_state_${variant}`;
         localStorage.removeItem(stateKey);
         
         // Load data from server
-        if (window.ServerAPI && window.ServerAPI.list) {
-          const memos = await window.ServerAPI.list();
+        const serverApi = getServerAPI();
+        if (serverApi && serverApi.list) {
+          const memos = await serverApi.list();
           const { db } = window.MemoCore.getState();
           
           // Replace local data with server data
@@ -260,8 +269,8 @@
       if (serverUrlInput) serverUrlInput.value = '';
       
       // Reset to local mode
-      window.API_BASE = '';
-      window.MODE = 'local';
+      setApiBase('');
+      setMode('local');
       
       // Hide sync status
       const syncStatusEl = document.getElementById('syncStatus');
@@ -273,10 +282,10 @@
     // Export all data
     async function handleExportData() {
       // If server mode, simple download from /api/backup
-      if (window.MODE === 'server') {
+      if (getMode() === 'server') {
           showStatus(importExportStatus, 'Requesting server backup...', 'info');
           const backupLink = document.createElement('a');
-          backupLink.href = (window.API_BASE || '') + '/api/backup';
+          backupLink.href = getApiBase() + '/api/backup';
           backupLink.target = '_blank';
           backupLink.download = 'backup.zip';
           document.body.appendChild(backupLink);
@@ -299,7 +308,7 @@
         }
 
         const { db } = window.MemoCore.getState();
-        const variant = window.MEMO_VARIANT || 'default';
+        const variant = getVariant();
         const zip = new JSZip();
 
         // Create data folder structure
@@ -402,8 +411,8 @@
             // Fetch the file
             let fetchUrl = fileUrl;
             // If relative URL and we have API_BASE, prepend it
-            if (fetchUrl.startsWith('/') && window.API_BASE) {
-                fetchUrl = window.API_BASE.replace(/\/$/, '') + fetchUrl;
+            if (fetchUrl.startsWith('/') && getApiBase()) {
+              fetchUrl = getApiBase().replace(/\/$/, '') + fetchUrl;
             }
 
             let blob;
@@ -552,7 +561,7 @@
         }
 
         // 4. Handle images/attachments based on mode
-        const MODE = window.MODE || 'local';
+        const MODE = getMode();
         
         if (MODE === 'server') {
           // Server mode: Upload files to server
@@ -574,8 +583,9 @@
               const file = new File([fileData], filename, { type: fileData.type });
               
               // Upload via ServerAPI
-              if (window.ServerAPI && window.ServerAPI.upload) {
-                const result = await window.ServerAPI.upload(file);
+              const serverApi = getServerAPI();
+              if (serverApi && serverApi.upload) {
+                const result = await serverApi.upload(file);
                 if (result && result.url) {
                   // Map old path to new URL
                   const oldPath = '/' + filePath.replace('data/', '');
@@ -636,12 +646,13 @@
           }
 
           // Save to server if in server mode
-          if (MODE === 'server' && window.ServerAPI) {
+          const serverApi = getServerAPI();
+          if (MODE === 'server' && serverApi) {
             showStatus(importExportStatus, 'Saving to server...', 'info');
             // Trigger a full save
             for (const entry of db.entries) {
               try {
-                await window.ServerAPI.update(entry.id, entry);
+                await serverApi.update(entry.id, entry);
               } catch (err) {
                 // Skip failed saves
               }

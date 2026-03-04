@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timedelta
 
 
-class ServiceMemos:
+class MemosService:
     def handle_get_all_memos(self, variant, get_memos_for_variant):
         return get_memos_for_variant(variant), 200
 

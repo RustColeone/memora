@@ -1,7 +1,7 @@
 from datetime import datetime
 
 
-class ServiceOperations:
+class OperationsService:
     def __init__(self, lock, read_json, write_json, operations_file_for_variant, snapshot_file_for_variant):
         self.lock = lock
         self.read_json = read_json

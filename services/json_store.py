@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from datetime import datetime
 
 
-class ServiceJsonStore:
+class JsonStoreService:
     def __init__(self, backup_root: str, max_backups_per_file: int = 10):
         self.backup_root = backup_root
         self.max_backups_per_file = max(1, int(max_backups_per_file))

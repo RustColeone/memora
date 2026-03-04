@@ -4,7 +4,7 @@ import zipfile
 from datetime import datetime
 
 
-class ServiceBackup:
+class BackupService:
     def handle_download_backup(self, base_dir, data_dir, upload_folder):
         mem_zip = io.BytesIO()
 

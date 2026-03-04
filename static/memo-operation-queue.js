@@ -29,8 +29,13 @@ const OperationQueue = {
       console.log('   ✅ Device ID loaded:', this.deviceId);
     }
     
+    const Runtime = window.MemoRuntime || null;
+    const Contracts = window.MemoContracts || null;
+    const getApiBase = () => (Runtime ? Runtime.getApiBase() : (Contracts ? Contracts.getApiBase() : ''));
+    const getVariant = () => (Contracts ? Contracts.getVariant() : (window.MEMO_VARIANT || 'default'));
+
     // Load queue from localStorage
-    const variant = window.MEMO_VARIANT || 'default';
+    const variant = getVariant();
     const queueKey = `memo_operation_queue_${variant}`;
     console.log('   Loading queue from:', queueKey);
     
@@ -139,7 +144,7 @@ const OperationQueue = {
   async applyOperationLocally(operation) {
     const { db } = window.MemoCore.getState();
     const entryId = operation.entryId;
-    const apiBase = (window.API_BASE || '').replace(/\/$/, '');
+    const apiBase = getApiBase().replace(/\/$/, '');
     
     // Helper to convert relative URLs to absolute
     const fixImageUrl = (url) => {
@@ -273,7 +278,7 @@ const OperationQueue = {
     }
     
     // Only sync when we have a remote server configured
-    const hasRemoteServer = window.API_BASE && window.API_BASE.trim() !== '';
+    const hasRemoteServer = getApiBase() && getApiBase().trim() !== '';
     if (!hasRemoteServer) {
       return;
     }
@@ -433,7 +438,7 @@ const OperationQueue = {
     console.log(`📤 Uploading ${filename} (hash: ${clientHash.substr(0, 8)}...)`);
     
     // Upload to server
-    let apiBase = window.API_BASE || '';
+    let apiBase = getApiBase() || '';
     apiBase = apiBase.replace(/\/$/, '');
     const uploadUrl = `${apiBase}/api/upload`;
     
@@ -487,9 +492,9 @@ const OperationQueue = {
    * Push an operation to server
    */
   async pushOperationToServer(op) {
-    let apiBase = window.API_BASE || '';
+    let apiBase = getApiBase() || '';
     apiBase = apiBase.replace(/\/$/, '');
-    const variant = window.MEMO_VARIANT || 'default';
+    const variant = getVariant();
     const url = `${apiBase}/api/operations/push?variant=${variant}`;
     
     console.log(`📡 Push URL: ${url}`);
@@ -569,9 +574,9 @@ const OperationQueue = {
    * Pull new operations from server and apply them
    */
   async pullServerOperations() {
-    let apiBase = window.API_BASE || '';
+    let apiBase = getApiBase() || '';
     apiBase = apiBase.replace(/\/$/, '');
-    const variant = window.MEMO_VARIANT || 'default';
+    const variant = getVariant();
     const url = `${apiBase}/api/operations/pull?variant=${variant}&sinceOpId=${this.lastServerOpId}`;
     
     console.log(`📥 Pulling operations from server...`);
@@ -698,7 +703,7 @@ const OperationQueue = {
    * Save queue to localStorage
    */
   saveQueue() {
-    const variant = window.MEMO_VARIANT || 'default';
+    const variant = getVariant();
     const queueKey = `memo_operation_queue_${variant}`;
     const data = {
       queue: this.queue,

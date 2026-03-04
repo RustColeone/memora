@@ -6,6 +6,15 @@
 (function() {
   'use strict';
 
+  var Runtime = window.MemoRuntime || null;
+  var Contracts = window.MemoContracts || null;
+  function getMode() {
+    return Contracts ? Contracts.getMode() : (window.MODE || 'detecting');
+  }
+  function getApiBase() {
+    return Runtime ? Runtime.getApiBase() : (Contracts ? Contracts.getApiBase() : '');
+  }
+
   // Debug log storage
   const debugLog = {
     entries: [],
@@ -173,8 +182,8 @@
     
     // Wait a bit for memo-core.js to set global variables
     setTimeout(() => {
-      console.log('📱 Mode:', window.MODE || 'detecting');
-      console.log('🌐 API Base:', window.API_BASE || '(empty - same origin)');
+      console.log('📱 Mode:', getMode());
+      console.log('🌐 API Base:', getApiBase() || '(empty - same origin)');
       console.log('📦 Variant:', window.MEMO_VARIANT || 'default');
       console.log('🔧 Capacitor:', !!(window.CAP_BOOT || window.__CAP_MODE__));
     }, 100);

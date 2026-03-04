@@ -3,6 +3,30 @@
  * Keeps compatibility methods used by core/settings while delegating sync to OperationQueue.
  */
 
+const SyncContracts = (typeof window !== 'undefined' && window.MemoContracts) ? window.MemoContracts : null;
+const SyncRuntime = (typeof window !== 'undefined' && window.MemoRuntime) ? window.MemoRuntime : null;
+
+function getOperationQueue() {
+  if (SyncRuntime && typeof SyncRuntime.getService === 'function') {
+    return SyncRuntime.getService('operationQueue', window.OperationQueue);
+  }
+  if (SyncContracts && typeof SyncContracts.getService === 'function') {
+    const svc = SyncContracts.getService('operationQueue');
+    if (svc) return svc;
+  }
+  return window.OperationQueue;
+}
+
+function getApiBase() {
+  if (SyncRuntime && typeof SyncRuntime.getApiBase === 'function') {
+    return SyncRuntime.getApiBase();
+  }
+  if (SyncContracts && typeof SyncContracts.getApiBase === 'function') {
+    return SyncContracts.getApiBase();
+  }
+  return '';
+}
+
 const SyncManager = {
   syncState: {
     isSyncing: false,
@@ -27,8 +51,9 @@ const SyncManager = {
       this.syncState.unloadHandler = null;
     }
 
-    if (window.OperationQueue && window.OperationQueue.init) {
-      window.OperationQueue.init();
+    const operationQueue = getOperationQueue();
+    if (operationQueue && operationQueue.init) {
+      operationQueue.init();
     } else {
       console.warn('⚠️ OperationQueue not found; sync is unavailable.');
       return;
@@ -46,8 +71,9 @@ const SyncManager = {
     document.addEventListener('visibilitychange', this.syncState.visibilityHandler);
 
     this.syncState.unloadHandler = () => {
-      if (window.OperationQueue && window.OperationQueue.saveQueue) {
-        window.OperationQueue.saveQueue();
+      const operationQueue = getOperationQueue();
+      if (operationQueue && operationQueue.saveQueue) {
+        operationQueue.saveQueue();
       }
     };
     window.addEventListener('beforeunload', this.syncState.unloadHandler);
@@ -55,12 +81,13 @@ const SyncManager = {
 
   async performSync() {
     if (this.syncState.isSyncing) return;
-    if (!(window.OperationQueue && window.OperationQueue.processQueue)) return;
+    const operationQueue = getOperationQueue();
+    if (!(operationQueue && operationQueue.processQueue)) return;
 
     this.syncState.isSyncing = true;
     this.updateSyncUI('syncing', 'Syncing...');
     try {
-      await window.OperationQueue.processQueue();
+      await operationQueue.processQueue();
       this.updateSyncUI('success', 'Synced');
     } catch (err) {
       console.error('Operation queue sync failed:', err);
@@ -104,7 +131,7 @@ const SyncManager = {
   },
 
   async downloadAssets(entry) {
-    const apiBase = (window.API_BASE || '').replace(/\/$/, '');
+    const apiBase = getApiBase().replace(/\/$/, '');
     const isFileProtocol = window.location.protocol === 'file:';
     const needsDownload = isFileProtocol || !navigator.onLine;
 
@@ -289,3 +316,6 @@ const SyncManager = {
 };
 
 window.SyncManager = SyncManager;
+if (SyncContracts && typeof SyncContracts.registerService === 'function') {
+  SyncContracts.registerService('syncManager', SyncManager);
+}

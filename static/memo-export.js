@@ -1,6 +1,15 @@
 (function () {
   'use strict';
 
+  var Runtime = window.MemoRuntime || null;
+  var Contracts = window.MemoContracts || null;
+  function getApiBase() {
+    return Runtime ? Runtime.getApiBase() : (Contracts ? Contracts.getApiBase() : '');
+  }
+  function getMode() {
+    return Contracts ? Contracts.getMode() : (window.MODE || 'local');
+  }
+
   function escapeHtml(value) {
     return String(value == null ? '' : value)
       .replace(/&/g, '&amp;')
@@ -166,7 +175,7 @@
   }
 
   function resolveApiBase() {
-    var base = (window.API_BASE || '').trim();
+    var base = getApiBase().trim();
     if (base) return base;
     if (location.protocol === 'http:' || location.protocol === 'https:') return '';
     return '';
@@ -175,7 +184,7 @@
   function isServerDetailedAvailable() {
     if (!navigator.onLine) return false;
     var base = resolveApiBase();
-    var mode = (window.MODE || '').toLowerCase();
+    var mode = (getMode() || '').toLowerCase();
     return mode === 'server' || base !== '' || location.protocol === 'http:' || location.protocol === 'https:';
   }
 

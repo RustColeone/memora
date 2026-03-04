@@ -7,86 +7,19 @@
     <meta content="width=device-width, initial-scale=1" name="viewport" />
     <title>Finance — Purchases &amp; Receipts</title>
     <meta name="memo-variant" content="finance" />
-    <!-- Try to load Capacitor bootstrap; if it fails, we're likely not in Capacitor mode -->
     <script>
-        (function(){
-            var s = document.createElement('script');
-            s.src = 'static/memo-capacitor.js';
-            s.defer = true;
-            s.onload = function(){
-                window.CAP_BOOT = !!window.__CAP_MODE__;
-                if (window.CAP_BOOT) {
-                  var doHide = function(){
-                    var btn = document.getElementById('chooseDirBtn'); if (btn) btn.hidden = true;
-                    var hint = document.querySelector('.toolbar .hint'); if (hint) hint.hidden = true;
-                  };
-                  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', doHide); else doHide();
-                }
+        (function () {
+            var hasServer = location.protocol === 'http:' || location.protocol === 'https:';
+            var staticBase = hasServer ? '/static/' : '../static/';
+            var script = document.createElement('script');
+            script.src = staticBase + 'memo-bootstrap.js';
+            script.onload = function () {
+                window.MemoBootstrap.initHead({
+                    cssFiles: ['memo.css', 'memo-finance.css'],
+                    hideWhenCapacitor: ['#chooseDirBtn', '.toolbar .hint']
+                });
             };
-            s.onerror = function(){ window.CAP_BOOT = false; };
-            document.head.appendChild(s);
-        })();
-    </script>
-    <script>
-        // Server configuration
-        // Auto-detect environment and set API_BASE
-        (function(){
-            var protocol = location.protocol;
-            var isHttps = protocol === 'https:';
-            var isHttp = protocol === 'http:';
-            var isCapacitor = protocol === 'capacitor:' || protocol === 'ionic:';
-            
-            console.log('🔧 Protocol detection:', protocol, '| isCapacitor:', isCapacitor);
-            
-            // Auto-detect server base URL
-            if (isHttps) {
-                // Running on HTTPS - we're on the server
-                window.API_BASE = '';
-                console.log('🌐 HTTPS mode: API_BASE = (empty - same origin)');
-            } else if (isHttp) {
-                // Running on HTTP - check for custom server URL
-                var serverUrl = localStorage.getItem('memo_server_url');
-                if (serverUrl && serverUrl.trim()) {
-                    // User specified a full server URL (e.g., "http://192.168.1.100:5050" or "https://example.com")
-                    window.API_BASE = serverUrl.trim();
-                    console.log('🌐 HTTP mode with custom server: API_BASE =', window.API_BASE);
-                } else {
-                    // No server URL specified - assume same origin
-                    window.API_BASE = '';
-                    console.log('🌐 HTTP mode: API_BASE = (empty - same origin)');
-                }
-            } else if (isCapacitor) {
-                // Running in Capacitor app - MUST have server URL
-                var serverUrl = localStorage.getItem('memo_server_url');
-                if (serverUrl && serverUrl.trim()) {
-                    window.API_BASE = serverUrl.trim();
-                    console.log('📱 Capacitor mode: API_BASE =', window.API_BASE);
-                } else {
-                    // No server configured yet - will prompt user in app
-                    window.API_BASE = '';
-                    console.log('⚠️  Capacitor mode: No server URL configured yet');
-                }
-            } else {
-                // File protocol or other - local mode
-                var serverUrl = localStorage.getItem('memo_server_url');
-                if (serverUrl && serverUrl.trim()) {
-                    window.API_BASE = serverUrl.trim();
-                    console.log('📁 Local/File mode: API_BASE =', window.API_BASE);
-                } else {
-                   // Default to localhost:5050 if nothing set, to help with local testing
-                   window.API_BASE = 'http://localhost:5050';
-                   console.log('📁 Local/File mode: Defaulting API_BASE to', window.API_BASE);
-                }
-            }
-            
-            var hasServer = isHttps || isHttp;
-            var STATIC_BASE = hasServer ? '/static/' : '../static/';
-            ['memo.css','memo-finance.css'].forEach(function(f){
-                var l = document.createElement('link');
-                l.rel = 'stylesheet';
-                l.href = STATIC_BASE + f;
-                document.head.appendChild(l);
-            });
+            document.head.appendChild(script);
         })();
     </script>
 </head>
@@ -508,34 +441,87 @@
         </div>
     </dialog>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>
-        (function(){
-            var hasServer = location.protocol === 'http:' || location.protocol === 'https:';
-            var STATIC_BASE = hasServer ? '/static/' : '../static/';
-            var files = [
-                'memo-debug.js',
-                'memo-theme.js',
-                'memo-export.js',
-                'memo-settings.js',
-                'memo-operation-queue.js',
-                'memo-sync.js',
-                'memo-core.js',
-                'memo-variant-finance.js',
-                'memo-filter.js',
-                'memo-lightbox.js'
-            ];
-            function loadOrderedFast(){
-                files.forEach(function(file){
-                    var s = document.createElement('script');
-                    s.src = STATIC_BASE + file;
-                    s.async = false;
-                    document.body.appendChild(s);
-                });
+        (function () {
+            var APP_SCRIPT_PATTERN = /\/static\/memo[^\s]*\.js/i;
+
+            function showBootError(message) {
+                var id = 'memoBootErrorBanner';
+                var existing = document.getElementById(id);
+                if (existing) {
+                    existing.textContent = message;
+                    return;
+                }
+                var banner = document.createElement('div');
+                banner.id = id;
+                banner.style.position = 'fixed';
+                banner.style.left = '12px';
+                banner.style.right = '12px';
+                banner.style.bottom = '12px';
+                banner.style.zIndex = '99999';
+                banner.style.background = '#7f1d1d';
+                banner.style.color = '#fee2e2';
+                banner.style.border = '1px solid #ef4444';
+                banner.style.borderRadius = '8px';
+                banner.style.padding = '10px 12px';
+                banner.style.fontSize = '12px';
+                banner.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+                banner.style.whiteSpace = 'pre-wrap';
+                banner.textContent = message;
+                document.body.appendChild(banner);
             }
-            if (!window.CAP_BOOT) loadOrderedFast();
+
+            function isRelevantFilename(filename) {
+                if (!filename) return false;
+                if (filename.indexOf('chrome-extension://') === 0) return false;
+                if (filename.indexOf('lockdown-install.js') !== -1) return false;
+                if (filename.indexOf('cdnjs.cloudflare.com') !== -1) return false;
+                return APP_SCRIPT_PATTERN.test(filename);
+            }
+
+            function isRelevantReason(reason) {
+                var text = '';
+                if (reason && reason.stack) text = String(reason.stack);
+                else if (reason && reason.message) text = String(reason.message);
+                else text = String(reason || '');
+
+                if (!text) return false;
+                if (/chrome-extension:\/\//i.test(text)) return false;
+                if (/lockdown-install\.js/i.test(text)) return false;
+                if (/cdnjs\.cloudflare\.com/i.test(text)) return false;
+                return /\/static\/memo[^\s]*\.js/i.test(text) || /\bmemo\b/i.test(text);
+            }
+
+            window.addEventListener('error', function (event) {
+                if (!isRelevantFilename(event.filename || '')) return;
+                var msg = '[Memo boot error] ' + (event.message || 'Script error');
+                if (event.filename) msg += '\n' + event.filename + (event.lineno ? ':' + event.lineno : '');
+                showBootError(msg);
+            });
+
+            window.addEventListener('unhandledrejection', function (event) {
+                if (!isRelevantReason(event.reason)) return;
+                var reason = event.reason;
+                var text = (reason && reason.message) ? reason.message : String(reason || 'Unknown promise rejection');
+                showBootError('[Memo boot rejection] ' + text);
+            });
         })();
     </script>
+
+    <script src="/static/memo-contracts.js"></script>
+    <script src="/static/memo-runtime.js"></script>
+    <script src="/static/memo-api.js"></script>
+    <script src="/static/memo-debug.js"></script>
+    <script src="/static/memo-theme.js"></script>
+    <script src="/static/memo-export.js"></script>
+    <script src="/static/memo-settings.js"></script>
+    <script src="/static/memo-operation-queue.js"></script>
+    <script src="/static/memo-sync.js"></script>
+    <script src="/static/memo-core.js"></script>
+    <script src="/static/memo-variant-finance.js"></script>
+    <script src="/static/memo-filter.js"></script>
+    <script src="/static/memo-lightbox.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>
         /* Close brand dropdown if clicked outside */
         window.addEventListener('click', function(event) {

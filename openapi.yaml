@@ -1,0 +1,860 @@
+openapi: 3.0.3
+info:
+  title: Memo System Backend API
+  version: 1.0.0
+  description: |
+    OpenAPI specification for the Memo System Flask backend.
+
+    Variant-aware endpoints support `default` and `finance` datasets.
+    Variant resolution order:
+      1. Query parameter: `variant=finance|default`
+      2. Header: `X-Memo-Variant: finance|default`
+      3. Referer heuristic (`/finance/`)
+
+servers:
+  - url: http://localhost:5050
+    description: Local development server
+
+tags:
+  - name: Config
+  - name: Chat
+  - name: Memos
+  - name: Operations
+  - name: Upload
+  - name: Export
+  - name: Backup
+  - name: Frontend
+
+paths:
+  /api/config:
+    get:
+      tags: [Config]
+      summary: Get backend configuration
+      operationId: getConfig
+      responses:
+        '200':
+          description: Backend mode status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  server:
+                    type: boolean
+                required: [server]
+
+  /api/chat:
+    get:
+      tags: [Chat]
+      summary: Get chat history
+      operationId: getChatHistory
+      parameters:
+        - $ref: '#/components/parameters/VariantQuery'
+        - $ref: '#/components/parameters/VariantHeader'
+      responses:
+        '200':
+          description: Chat history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChatMessage'
+
+    post:
+      tags: [Chat]
+      summary: Send chat message
+      operationId: sendChatMessage
+      parameters:
+        - $ref: '#/components/parameters/VariantQuery'
+        - $ref: '#/components/parameters/VariantHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatSendRequest'
+      responses:
+        '200':
+          description: User and assistant messages appended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatSendResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+
+    delete:
+      tags: [Chat]
+      summary: Clear chat history
+      operationId: clearChatHistory
+      parameters:
+        - $ref: '#/components/parameters/VariantQuery'
+        - $ref: '#/components/parameters/VariantHeader'
+      responses:
+        '200':
+          description: Cleared history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChatMessage'
+        '400':
+          description: Backend disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+
+  /api/chat/create-entry:
+    post:
+      tags: [Chat]
+      summary: Create memo entry from uploaded files and optional prompt
+      operationId: createEntryFromChatFiles
+      parameters:
+        - $ref: '#/components/parameters/VariantQuery'
+        - $ref: '#/components/parameters/VariantHeader'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                message:
+                  type: string
+                  description: Optional user context for AI analysis
+              required: [files]
+      responses:
+        '200':
+          description: Entry created and chat messages returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatCreateEntryResponse'
+        '400':
+          description: Missing files or backend disabled
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ErrorMessage'
+                  - type: object
+                    properties:
+                      error:
+                        type: string
+
+  /api/memos:
+    get:
+      tags: [Memos]
+      summary: List memos
+      operationId: getMemos
+      parameters:
+        - $ref: '#/components/parameters/VariantQuery'
+        - $ref: '#/components/parameters/VariantHeader'
+      responses:
+        '200':
+          description: List of memo entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MemoEntry'
+
+    post:
+      tags: [Memos]
+      summary: Create memo
+      operationId: createMemo
+      parameters:
+        - $ref: '#/components/parameters/VariantQuery'
+        - $ref: '#/components/parameters/VariantHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: Created memo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoEntry'
+        '400':
+          description: Backend disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+
+  /api/memos/{memo_id}:
+    put:
+      tags: [Memos]
+      summary: Update memo
+      operationId: updateMemo
+      parameters:
+        - $ref: '#/components/parameters/MemoId'
+        - $ref: '#/components/parameters/VariantQuery'
+        - $ref: '#/components/parameters/VariantHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Updated memo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoEntry'
+        '404':
+          description: Memo not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+
+    delete:
+      tags: [Memos]
+      summary: Delete memo (soft delete by default)
+      operationId: deleteMemo
+      parameters:
+        - $ref: '#/components/parameters/MemoId'
+        - $ref: '#/components/parameters/VariantQuery'
+        - $ref: '#/components/parameters/VariantHeader'
+        - name: permanent
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Permanently delete memo when true
+      responses:
+        '200':
+          description: Deleted memo details or success message
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/MemoEntry'
+                  - type: object
+                    properties:
+                      message:
+                        type: string
+        '404':
+          description: Memo not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+
+  /api/memos/{memo_id}/restore:
+    post:
+      tags: [Memos]
+      summary: Restore a soft-deleted memo
+      operationId: restoreMemo
+      parameters:
+        - $ref: '#/components/parameters/MemoId'
+        - $ref: '#/components/parameters/VariantQuery'
+        - $ref: '#/components/parameters/VariantHeader'
+      responses:
+        '200':
+          description: Restored memo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoEntry'
+        '404':
+          description: Memo not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+
+  /api/operations/push:
+    post:
+      tags: [Operations]
+      summary: Push operation log entries from client
+      operationId: pushOperations
+      parameters:
+        - $ref: '#/components/parameters/VariantQuery'
+        - $ref: '#/components/parameters/VariantHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                operations:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ClientOperation'
+      responses:
+        '200':
+          description: Assigned operation IDs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PushOperationsResponse'
+        '400':
+          description: Backend disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+
+  /api/operations/pull:
+    get:
+      tags: [Operations]
+      summary: Pull operations since op ID
+      operationId: pullOperations
+      parameters:
+        - $ref: '#/components/parameters/VariantQuery'
+        - $ref: '#/components/parameters/VariantHeader'
+        - name: sinceOpId
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Operations delta or snapshot + operations
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/PullOperationsDeltaResponse'
+                  - $ref: '#/components/schemas/PullOperationsSnapshotResponse'
+        '400':
+          description: Backend disabled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  needsFullSync:
+                    type: boolean
+                  operations:
+                    type: array
+                    items: {}
+
+  /api/operations/compact:
+    post:
+      tags: [Operations]
+      summary: Compact old operations into snapshot
+      operationId: compactOperations
+      parameters:
+        - $ref: '#/components/parameters/VariantQuery'
+        - $ref: '#/components/parameters/VariantHeader'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                keepDays:
+                  type: integer
+                  minimum: 1
+                  default: 30
+      responses:
+        '200':
+          description: Compaction result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompactOperationsResponse'
+        '400':
+          description: Backend disabled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /api/upload:
+    post:
+      tags: [Upload]
+      summary: Upload file (multipart or base64 JSON)
+      operationId: uploadFile
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required: [file]
+          application/json:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  description: Base64 payload (optionally data URL prefixed)
+                filename:
+                  type: string
+                type:
+                  type: string
+              required: [file, filename]
+      responses:
+        '200':
+          description: Duplicate upload detected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponseDuplicate'
+        '201':
+          description: Uploaded new file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponseCreated'
+        '400':
+          description: Invalid request, parse failure, or backend disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+
+  /uploads/{filename}:
+    get:
+      tags: [Upload]
+      summary: Download/serve uploaded file
+      operationId: getUploadedFile
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Binary file response
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
+  /api/export/detailed-pdf:
+    post:
+      tags: [Export]
+      summary: Export detailed PDF
+      operationId: exportDetailedPdf
+      parameters:
+        - $ref: '#/components/parameters/VariantQuery'
+        - $ref: '#/components/parameters/VariantHeader'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pageSize:
+                  type: string
+                  enum: [A4, LETTER, LEGAL]
+                  default: A4
+                entryIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: PDF file
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid request or no selected entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+        '500':
+          description: PDF dependencies missing or generation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+
+  /api/backup:
+    get:
+      tags: [Backup]
+      summary: Download full backup (data + uploads)
+      operationId: downloadBackup
+      responses:
+        '200':
+          description: ZIP archive
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Backend disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorMessage'
+
+  /:
+    get:
+      tags: [Frontend]
+      summary: Render main page
+      operationId: getIndexPage
+      responses:
+        '200':
+          description: HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /index.html:
+    get:
+      tags: [Frontend]
+      summary: Render main page (index)
+      operationId: getIndexHtmlPage
+      responses:
+        '200':
+          description: HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /finance:
+    get:
+      tags: [Frontend]
+      summary: Render finance page
+      operationId: getFinancePage
+      responses:
+        '200':
+          description: HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /finance.html:
+    get:
+      tags: [Frontend]
+      summary: Render finance page (html)
+      operationId: getFinanceHtmlPage
+      responses:
+        '200':
+          description: HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+
+components:
+  parameters:
+    VariantQuery:
+      name: variant
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [default, finance]
+    VariantHeader:
+      name: X-Memo-Variant
+      in: header
+      required: false
+      schema:
+        type: string
+        enum: [default, finance]
+    MemoId:
+      name: memo_id
+      in: path
+      required: true
+      schema:
+        type: string
+
+  schemas:
+    ErrorMessage:
+      type: object
+      properties:
+        message:
+          type: string
+
+    ChatMessage:
+      type: object
+      properties:
+        id:
+          type: string
+        role:
+          type: string
+          enum: [user, assistant, system]
+        content:
+          type: string
+        ts:
+          type: string
+          description: ISO-8601 timestamp
+        files:
+          type: array
+          items:
+            type: string
+        entryId:
+          type: string
+      additionalProperties: true
+
+    ChatSendRequest:
+      type: object
+      properties:
+        message:
+          type: string
+        visibleIds:
+          type: array
+          items:
+            oneOf:
+              - type: string
+              - type: integer
+      required: [message]
+
+    ChatSendResponse:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+      required: [messages]
+
+    ChatCreateEntryResponse:
+      type: object
+      properties:
+        entry:
+          $ref: '#/components/schemas/MemoEntry'
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+      required: [entry, messages]
+
+    MemoEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        images:
+          type: array
+          items:
+            type: string
+        attachments:
+          type: array
+          items:
+            type: object
+            properties:
+              url:
+                type: string
+              name:
+                type: string
+            additionalProperties: true
+        ts:
+          type: integer
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        deletedAt:
+          nullable: true
+        deletedBy:
+          nullable: true
+        permanentDeleteAt:
+          nullable: true
+        purchaseDate:
+          type: string
+        price:
+          oneOf:
+            - type: number
+            - type: string
+        tax:
+          oneOf:
+            - type: number
+            - type: string
+        adjustment:
+          oneOf:
+            - type: number
+            - type: string
+        total:
+          oneOf:
+            - type: number
+            - type: string
+      additionalProperties: true
+
+    ClientOperation:
+      type: object
+      properties:
+        type:
+          type: string
+        entryId:
+          type: string
+        timestamp:
+          type: integer
+        deviceId:
+          type: string
+        clientOpId:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+        field:
+          type: string
+        value: {}
+        url:
+          type: string
+        attachment:
+          type: object
+          additionalProperties: true
+      required: [type, entryId]
+
+    ServerOperation:
+      allOf:
+        - $ref: '#/components/schemas/ClientOperation'
+        - type: object
+          properties:
+            opId:
+              type: integer
+
+    Snapshot:
+      type: object
+      properties:
+        snapshotId:
+          type: integer
+        timestamp:
+          type: integer
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemoEntry'
+      required: [snapshotId, timestamp, entries]
+
+    PushOperationsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        operations:
+          type: array
+          items:
+            type: object
+            properties:
+              clientOpId:
+                type: string
+                nullable: true
+              serverOpId:
+                type: integer
+              duplicate:
+                type: boolean
+        serverTime:
+          type: integer
+      required: [success, operations, serverTime]
+
+    PullOperationsDeltaResponse:
+      type: object
+      properties:
+        needsFullSync:
+          type: boolean
+          enum: [false]
+        operations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServerOperation'
+        latestOpId:
+          type: integer
+        serverTime:
+          type: integer
+      required: [needsFullSync, operations, latestOpId, serverTime]
+
+    PullOperationsSnapshotResponse:
+      type: object
+      properties:
+        needsFullSync:
+          type: boolean
+          enum: [true]
+        snapshot:
+          $ref: '#/components/schemas/Snapshot'
+        operations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServerOperation'
+        serverTime:
+          type: integer
+      required: [needsFullSync, snapshot, operations, serverTime]
+
+    CompactOperationsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        snapshotId:
+          type: integer
+        remainingOps:
+          type: integer
+        compactedCount:
+          type: integer
+      required: [success]
+
+    UploadResponseDuplicate:
+      type: object
+      properties:
+        url:
+          type: string
+        duplicate:
+          type: boolean
+          enum: [true]
+        hash:
+          type: string
+      required: [url, duplicate, hash]
+
+    UploadResponseCreated:
+      type: object
+      properties:
+        url:
+          type: string
+        duplicate:
+          type: boolean
+          enum: [false]
+        hash:
+          type: string
+        size:
+          type: integer
+      required: [url, duplicate, hash, size]

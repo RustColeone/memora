@@ -2,7 +2,9 @@
 // It mirrors android/src/static/memo-capacitor.js so you can copy between locations.
 (function(){
 	var C = window.Capacitor;
-	var isNative = !!C && ((typeof C.isNativePlatform === 'function' && C.isNativePlatform()) ||
+	var protocol = location.protocol;
+	var isWebProtocol = protocol === 'http:' || protocol === 'https:';
+	var isNative = !isWebProtocol && !!C && ((typeof C.isNativePlatform === 'function' && C.isNativePlatform()) ||
 												 (typeof C.getPlatform === 'function' && (C.getPlatform() === 'android' || C.getPlatform() === 'ios')));
 	// Public flags other scripts can check
 	window.__CAP_MODE__ = !!isNative;

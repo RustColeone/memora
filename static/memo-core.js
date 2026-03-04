@@ -12,7 +12,51 @@
 // =======================
 // Config
 // =======================
-const API_BASE = (typeof window !== "undefined" && window.API_BASE) ? window.API_BASE : ""; // e.g. "http://localhost:5000"
+const Contracts = (typeof window !== 'undefined' && window.MemoContracts) ? window.MemoContracts : null;
+const MemoApi = (typeof window !== 'undefined' && window.MemoApi) ? window.MemoApi : null;
+const Runtime = (typeof window !== 'undefined' && window.MemoRuntime) ? window.MemoRuntime : null;
+
+function getService(name, fallback) {
+  if (Runtime && typeof Runtime.getService === 'function') {
+    return Runtime.getService(name, fallback);
+  }
+  if (Contracts && typeof Contracts.getService === 'function') {
+    const svc = Contracts.getService(name);
+    if (svc) return svc;
+  }
+  return fallback;
+}
+
+function getApiBase() {
+  if (Runtime && typeof Runtime.getApiBase === 'function') {
+    return Runtime.getApiBase();
+  }
+  if (Contracts) return Contracts.getApiBase();
+  return "";
+}
+
+function getMode() {
+  if (Contracts) return Contracts.getMode();
+  return MODE;
+}
+
+function setMode(mode) {
+  MODE = mode;
+  if (Contracts) {
+    Contracts.setMode(mode);
+  } else {
+    window.MODE = mode;
+  }
+  return MODE;
+}
+
+function getSyncManager() {
+  return getService('syncManager', window.SyncManager);
+}
+
+function getOperationQueue() {
+  return getService('operationQueue', window.OperationQueue);
+}
 // Variant detection (default|finance). Prefer explicit window.MEMO_VARIANT or <meta name="memo-variant" content="finance">.
 const MEMO_VARIANT = (function(){
   if (typeof window !== 'undefined' && window.MEMO_VARIANT) return String(window.MEMO_VARIANT).toLowerCase();
@@ -126,7 +170,7 @@ const SETTINGS_KEY = 'memo_settings_v1';
 const CHAT_KEY = (MEMO_VARIANT === 'finance') ? 'chat_finance_v1' : 'chat_default_v1';
 
 let MODE = 'detecting'; // 'server' | 'local' | 'capacitor'
-window.MODE = MODE; // Make MODE accessible globally for sync manager
+setMode(MODE);
 window.MEMO_VARIANT = MEMO_VARIANT; // Make MEMO_VARIANT accessible globally
 let db = ({ entries: [] });
 let settings = ({ categories: ['Uncategorized'], tags: [], tagCounts: {}, fsEnabled: false, memoDirHandle: undefined });
@@ -140,219 +184,21 @@ let dragSrcIdx = null;
 let activeFilters = { dateFrom: null, dateTo: null, cats: new Set(), tags: new Set() };
 
 // =======================
-// Server detection & API
+// Server detection & API (delegated)
 // =======================
-
-// Helper for native HTTP (Capacitor) to bypass CORS/Cleartext issues
-async function nativeFetch(url, options = {}) {
-  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) {
-    try {
-      const method = (options.method || 'GET').toUpperCase();
-      const headers = options.headers || {};
-      
-      // If sending JSON, ensure header is set (if not already)
-      if (!headers['Content-Type'] && method !== 'GET' && options.body && typeof options.body === 'string' && options.body.trim().startsWith('{')) {
-         headers['Content-Type'] = 'application/json';
-      }
-
-      let data = options.body;
-      // If sending JSON string, parse it back to object for Capacitor (it handles serialization)
-      if (headers['Content-Type'] && headers['Content-Type'].includes('json') && typeof data === 'string') {
-        try { data = JSON.parse(data); } catch(e){}
-      }
-      
-      // Skip FormData for now (complex to polyfill correctly with boundary)
-      if (data instanceof FormData) {
-         return fetch(url, options);
-      }
-
-      const response = await window.Capacitor.Plugins.CapacitorHttp.request({
-        url: url,
-        method: method,
-        headers: headers,
-        data: data
-      });
-      
-      return {
-        ok: response.status >= 200 && response.status < 300,
-        status: response.status,
-        statusText: response.status >= 200 && response.status < 300 ? 'OK' : 'Error',
-        json: async () => response.data,
-        text: async () => typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
-      };
-    } catch (e) {
-      console.error('Native fetch failed', e);
-      // Fallback to fetch if native fails (though unlikely to help if blocked)
-      return fetch(url, options);
-    }
-  }
-  return fetch(url, options);
-}
-
-// Expose nativeFetch globally for other modules
-window.nativeFetch = nativeFetch;
-
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = error => reject(error);
-  });
-}
+const ServerAPI = (Contracts && typeof Contracts.getService === 'function' && Contracts.getService('serverApi'))
+  || (MemoApi && typeof MemoApi.getServerAPI === 'function'
+  ? MemoApi.getServerAPI()
+  : (Runtime && typeof Runtime.getServerAPI === 'function' ? Runtime.getServerAPI() : null));
 
 async function detectMode() {
-  try {
-    const r = await Promise.race([
-      nativeFetch(`${API_BASE}/api/config`, { cache: 'no-store' }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('config timeout')), 1200))
-    ]);
-    if (r.ok) {
-      const j = await r.json();
-      MODE = (j && j.server) ? 'server' : 'local';
-      window.MODE = MODE; // Update global
-      return MODE;
-    }
-  } catch (e) { /* ignore */ }
-  // If variant bootstrap put us in Capacitor native, prefer that over local
-  if (typeof window !== 'undefined' && (window.CAP_BOOT || window.__CAP_MODE__)) {
-    MODE = 'capacitor';
-    window.MODE = MODE; // Update global
-    return MODE;
+  if (MemoApi && typeof MemoApi.detectMode === 'function') {
+    setMode(await MemoApi.detectMode());
+  } else {
+    setMode('local');
   }
-  MODE = 'local';
-  window.MODE = MODE; // Update global
   return MODE;
 }
-
-const ServerAPI = {
-  async list() {
-    const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
-    const r = await nativeFetch(`${API_BASE}/api/memos${qp}`);
-    if (!r.ok) throw new Error('Failed to fetch memos');
-    return r.json();
-  },
-  async create(memo) {
-    const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
-    const r = await nativeFetch(`${API_BASE}/api/memos${qp}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(memo)
-    });
-    if (!r.ok) throw new Error('Failed to create memo');
-    return r.json();
-  },
-  async update(id, patch) {
-    const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
-    const r = await nativeFetch(`${API_BASE}/api/memos/${encodeURIComponent(id)}${qp}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch)
-    });
-    if (!r.ok) throw new Error('Failed to update memo');
-    return r.json();
-  },
-  async remove(id) {
-    const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
-    const r = await nativeFetch(`${API_BASE}/api/memos/${encodeURIComponent(id)}${qp}`, { method: 'DELETE' });
-    if (!r.ok) throw new Error('Failed to delete memo');
-  },
-  async removePermanent(id) {
-    const qp = MEMO_VARIANT === 'default' ? '?permanent=true' : `?variant=${encodeURIComponent(MEMO_VARIANT)}&permanent=true`;
-    const r = await nativeFetch(`${API_BASE}/api/memos/${encodeURIComponent(id)}${qp}`, { method: 'DELETE' });
-    if (!r.ok) throw new Error('Failed to permanently delete memo');
-  },
-  async restore(id) {
-    const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
-    const r = await nativeFetch(`${API_BASE}/api/memos/${encodeURIComponent(id)}/restore${qp}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    if (!r.ok) throw new Error('Failed to restore memo');
-    return r.json();
-  },
-  async upload(file) {
-    // Try native upload via JSON/Base64 if in Capacitor mode
-    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) {
-       try {
-         const base64Data = await fileToBase64(file);
-         const r = await nativeFetch(`${API_BASE}/api/upload`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-               file: base64Data,
-               filename: file.name,
-               type: file.type
-            })
-         });
-         if (!r.ok) throw new Error('Upload failed');
-         return r.json();
-       } catch (e) {
-         console.error('Native upload failed, falling back', e);
-       }
-    }
-
-    const fd = new FormData();
-    fd.append('file', file);
-    // Upload still uses fetch because FormData is hard to polyfill with CapacitorHttp
-    const r = await fetch(`${API_BASE}/api/upload`, { method: 'POST', body: fd });
-    if (!r.ok) throw new Error('Upload failed');
-    return r.json(); // { url: "/uploads/..." }
-  },
-  // Chat API
-  async chatList() {
-    const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
-    const r = await nativeFetch(`${API_BASE}/api/chat${qp}`);
-    if (!r.ok) throw new Error('Failed to fetch chat history');
-    return r.json(); // [ {id, role, content, ts}, ... ]
-  },
-  async chatSend(message) {
-    const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
-    // Collect currently visible entry IDs (variant-specific DOM shapes)
-    let visibleIds = [];
-    try {
-      if (MEMO_VARIANT === 'finance') {
-        // finance variant rows: <tr> with click handler; need to map from description cell text not reliable -> expose via data-id if available
-        // We'll look for detail trigger attributes by reconstructing from in-memory filtered order via variant render process if exported
-        const { db } = window.MemoCore.getState();
-        // Attempt reading IDs from table rows if we enhance variant later; fallback to all entries (capped)
-        const rows = document.querySelectorAll('table.listtable tbody tr');
-        rows.forEach(rw => {
-          const id = rw.getAttribute('data-id'); if (id) visibleIds.push(id);
-        });
-        if (!visibleIds.length) {
-          // Fallback: approximate visible set by applying client filters again
-          if (window.MemoVariant && typeof window.MemoVariant.__lastFiltered === 'function') {
-            visibleIds = window.MemoVariant.__lastFiltered().map(e=>e.id);
-          }
-        }
-      } else {
-        // default variant cards do not have data-id; reconstruct from ordering by re-running filter logic if helper exists
-        const cards = document.querySelectorAll('.feed .card');
-        // If future enhancement adds data-id attribute, capture it; otherwise fallback to recompute
-        cards.forEach(c => { const id = c.getAttribute('data-id'); if (id) visibleIds.push(id); });
-        if (!visibleIds.length && window.MemoVariant && typeof window.MemoVariant.__lastFiltered === 'function') {
-            visibleIds = window.MemoVariant.__lastFiltered().map(e=>e.id);
-        }
-      }
-    } catch (err) { /* ignore collection errors */ }
-    // De-duplicate & cap to avoid huge payloads
-    visibleIds = Array.from(new Set(visibleIds)).slice(0, 100);
-    const r = await nativeFetch(`${API_BASE}/api/chat${qp}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, visibleIds })
-    });
-    if (!r.ok) throw new Error('Failed to send chat message');
-    return r.json(); // { messages: [ userMsg, botMsg ] }
-  },
-  async chatClear() {
-    const qp = MEMO_VARIANT === 'default' ? '' : `?variant=${encodeURIComponent(MEMO_VARIANT)}`;
-    const r = await nativeFetch(`${API_BASE}/api/chat${qp}`, { method: 'DELETE' });
-    if (!r.ok) throw new Error('Failed to clear chat');
-    return r.json(); // []
-  }
-};
 
 // =======================
 // Local storage + FS Access
@@ -1157,8 +1003,9 @@ async function onSaveEntry() {
     }
     
     // Mark as modified for sync
-    if (window.SyncManager) {
-      window.SyncManager.markModified(saved.id);
+    const syncManager = getSyncManager();
+    if (syncManager && typeof syncManager.markModified === 'function') {
+      syncManager.markModified(saved.id);
     }
   } else if (MODE === 'capacitor' && CapFS.ready()) {
     // Native app private storage
@@ -1310,7 +1157,8 @@ async function onSaveEntry() {
     recomputeTags(); saveAll();
     
     // Add to operation queue for sync (for local/file mode)
-    if (window.OperationQueue && MODE !== 'server') {
+    const operationQueue = getOperationQueue();
+    if (operationQueue && MODE !== 'server') {
       console.log('📋 Adding operation to queue:', isNew ? 'create' : 'update', entry.id);
       const opData = {
         description: entry.description,
@@ -1334,9 +1182,9 @@ async function onSaveEntry() {
       }
       
       if (isNew) {
-        await window.OperationQueue.addOperation('create', entry.id, opData);
+        await operationQueue.addOperation('create', entry.id, opData);
       } else {
-        await window.OperationQueue.addOperation('update', entry.id, opData);
+        await operationQueue.addOperation('update', entry.id, opData);
       }
     }
   }
@@ -1373,9 +1221,10 @@ async function onDeleteEntry() {
   recomputeTags(); saveAll();
   
   // Add to operation queue for sync (for local/file mode)
-  if (window.OperationQueue && MODE !== 'server') {
+  const operationQueue = getOperationQueue();
+  if (operationQueue && MODE !== 'server') {
     console.log('📋 Adding delete operation to queue:', id);
-    await window.OperationQueue.addOperation('delete', id);
+    await operationQueue.addOperation('delete', id);
   }
   
   els.detailDlg?.close(); 
@@ -1703,7 +1552,7 @@ async function coreInit() {
     
     // Show sync status indicator ONLY if we have a remote server configured
     // Don't show it if we're accessing the server directly (API_BASE is empty)
-    const hasRemoteServer = API_BASE && API_BASE.trim() !== '';
+    const hasRemoteServer = getApiBase() && getApiBase().trim() !== '';
     const syncStatusEl = document.getElementById('syncStatus');
     if (syncStatusEl && hasRemoteServer) {
       syncStatusEl.style.display = 'flex';
@@ -1735,15 +1584,17 @@ async function coreInit() {
       renderFeed();
       
       // Initialize sync manager for server mode
-      if (window.SyncManager) {
-        await window.SyncManager.init();
+      const syncManager = getSyncManager();
+      if (syncManager && typeof syncManager.init === 'function') {
+        await syncManager.init();
         // Perform initial sync after a brief delay
-        setTimeout(() => window.SyncManager.performSync(), 1000);
+        if (typeof syncManager.performSync === 'function') {
+          setTimeout(() => syncManager.performSync(), 1000);
+        }
       }
     } catch (e) {
       console.error('Failed to load memos from server; falling back to local.', e);
-      MODE = 'local';
-      window.MODE = MODE; // Update global
+      setMode('local');
       renderFeed();
     }
   } else {
@@ -2178,10 +2029,10 @@ function createChatMsgElement(msg) {
           if (window.openImagePreview) {
             window.openImagePreview(fileUrl);
           } else {
-            window.open((API_BASE || '') + fileUrl, '_blank');
+            window.open((getApiBase() || '') + fileUrl, '_blank');
           }
         } else {
-          window.open((API_BASE || '') + fileUrl, '_blank');
+          window.open((getApiBase() || '') + fileUrl, '_blank');
         }
       };
       
@@ -2230,7 +2081,7 @@ function initChatUI() {
   
   if (chatAddFileBtn && chatFileInput) {
     // Only show if server is connected
-    const hasRemoteServer = MODE === 'server' || (API_BASE && API_BASE.trim() !== '');
+    const hasRemoteServer = MODE === 'server' || (getApiBase() && getApiBase().trim() !== '');
     chatAddFileBtn.style.display = hasRemoteServer ? 'flex' : 'none';
     
     chatAddFileBtn.addEventListener('click', () => {
@@ -2280,8 +2131,9 @@ function initChatUI() {
     console.log('💬 chatDlg shown');
     
     // Use server chat if we have a remote server configured (MODE === 'server' OR API_BASE is set)
-    const hasRemoteServer = MODE === 'server' || (API_BASE && API_BASE.trim() !== '');
-    console.log(`💬 Chat mode: ${hasRemoteServer ? 'SERVER' : 'LOCAL'} (MODE=${MODE}, API_BASE=${API_BASE})`);
+    const apiBase = getApiBase();
+    const hasRemoteServer = MODE === 'server' || (apiBase && apiBase.trim() !== '');
+    console.log(`💬 Chat mode: ${hasRemoteServer ? 'SERVER' : 'LOCAL'} (MODE=${MODE}, API_BASE=${getApiBase()})`);
     
     if (hasRemoteServer) {
       try {
@@ -2292,7 +2144,7 @@ function initChatUI() {
         let finalHistory = serverHistory || [];
 
         // Sync/Merge server history to local storage
-        if (settings.fsEnabled || (window.MODE === 'capacitor')) {
+        if (settings.fsEnabled || (getMode() === 'capacitor')) {
           try {
              console.log('💬 Reading local chat for merge...');
              const localHistory = await LocalChat.list();
@@ -2373,7 +2225,7 @@ function initChatUI() {
     els.chatInput.disabled = true; els.chatSendBtn.disabled = true;
     
     // Use server chat if we have a remote server configured (MODE === 'server' OR API_BASE is set)
-    const hasRemoteServer = MODE === 'server' || (API_BASE && API_BASE.trim() !== '');
+    const hasRemoteServer = MODE === 'server' || (getApiBase() && getApiBase().trim() !== '');
     
     try {
       if (hasRemoteServer) {
@@ -2421,7 +2273,7 @@ function initChatUI() {
 
   async function doClear() {
     // Use server chat if we have a remote server configured (MODE === 'server' OR API_BASE is set)
-    const hasRemoteServer = MODE === 'server' || (API_BASE && API_BASE.trim() !== '');
+    const hasRemoteServer = MODE === 'server' || (getApiBase() && getApiBase().trim() !== '');
     
     try {
       if (hasRemoteServer) {

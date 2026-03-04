@@ -1,4 +1,4 @@
-class ServiceFrontend:
+class FrontendService:
     def index_template(self):
         return 'index.html'
 

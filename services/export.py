@@ -3,7 +3,7 @@ from datetime import datetime
 from services.pdf_export_service import build_detailed_pdf, pdf_dependencies_available
 
 
-class ServiceExport:
+class ExportService:
     def handle_detailed_pdf_export(self, payload, variant, base_dir, get_memos_for_variant):
         page_size = payload.get('pageSize') or 'A4'
         entry_ids = payload.get('entryIds') or []
