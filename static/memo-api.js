@@ -32,10 +32,14 @@
     return global.MODE || 'local';
   }
 
+  function isAbsoluteHttpUrl(url) {
+    return typeof url === 'string' && /^https?:\/\//i.test(url);
+  }
+
   async function nativeFetch(url, options) {
     var requestOptions = options || {};
 
-    if (global.Capacitor && global.Capacitor.Plugins && global.Capacitor.Plugins.CapacitorHttp) {
+    if (global.Capacitor && global.Capacitor.Plugins && global.Capacitor.Plugins.CapacitorHttp && isAbsoluteHttpUrl(url)) {
       try {
         var method = (requestOptions.method || 'GET').toUpperCase();
         var headers = requestOptions.headers || {};

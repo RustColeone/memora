@@ -62,8 +62,11 @@ const MEMO_VARIANT = (function(){
   if (typeof window !== 'undefined' && window.MEMO_VARIANT) return String(window.MEMO_VARIANT).toLowerCase();
   const meta = (typeof document !== 'undefined') ? document.querySelector('meta[name="memo-variant"]') : null;
   const mval = meta?.getAttribute('content');
-  const v = (mval || '').trim().toLowerCase();
-  return (v === 'finance' || v === 'default') ? v : 'default';
+  const metaVariant = (mval || '').trim().toLowerCase();
+  if (metaVariant === 'finance' || metaVariant === 'default') return metaVariant;
+  let storedVariant = '';
+  try { storedVariant = (localStorage.getItem('memo_variant') || '').trim().toLowerCase(); } catch (_ignored) {}
+  return (storedVariant === 'finance' || storedVariant === 'default') ? storedVariant : 'default';
 })();
 
 // Guarded query helpers

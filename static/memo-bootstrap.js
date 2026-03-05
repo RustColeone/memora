@@ -53,10 +53,10 @@
   function initHead(options) {
     var opts = options || {};
     var staticBase = getStaticBase();
-    var isWebProtocol = location.protocol === 'http:' || location.protocol === 'https:';
 
     global.API_BASE = resolveApiBase();
     global.STATIC_BASE = staticBase;
+    global.__MEMO_TEMPLATE_LOADS_SCRIPTS__ = true;
 
     injectStyles(opts.cssFiles || []);
 
@@ -64,7 +64,7 @@
     capacitorScript.src = staticBase + 'memo-capacitor.js';
     capacitorScript.defer = true;
     capacitorScript.onload = function () {
-      global.CAP_BOOT = !isWebProtocol && !!global.__CAP_MODE__;
+      global.CAP_BOOT = !!global.__CAP_MODE__;
       if (!global.CAP_BOOT) {
         return;
       }

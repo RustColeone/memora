@@ -70,6 +70,15 @@ body {
     color: var(--text)
 }
 
+html.cap-mode,
+html.cap-mode body {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+}
+
 header {
     position: sticky;
     top: 0;
@@ -259,9 +268,14 @@ main {
 
 .floating {
     position: fixed;
-    right: 20px;
-    bottom: 20px;
+    right: max(20px, env(safe-area-inset-right));
+    bottom: max(20px, env(safe-area-inset-bottom));
     z-index: 20
+}
+
+.floating .fab {
+    display: grid;
+    visibility: visible;
 }
 
 .fab {

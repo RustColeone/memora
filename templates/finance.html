@@ -4,7 +4,7 @@
 
 <head>
     <meta charset="utf-8" />
-    <meta content="width=device-width, initial-scale=1" name="viewport" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Finance — Purchases &amp; Receipts</title>
     <meta name="memo-variant" content="finance" />
     <script>
@@ -30,8 +30,8 @@
             <div class="brand-dropdown">
                 <button class="brand" onclick="document.getElementById('brandMenu').classList.toggle('show')">💸 Finance ▾</button>
                 <div id="brandMenu" class="dropdown-content">
-                    <a href="index.html">🗂️ Memo</a>
-                    <a href="finance.html">💸 Finance</a>
+                    <a href="index.html" data-variant="default">🗂️ Memo</a>
+                    <a href="finance.html" data-variant="finance">💸 Finance</a>
                 </div>
             </div>
             <div class="spacer"></div>
@@ -518,7 +518,17 @@
     <script src="/static/memo-operation-queue.js"></script>
     <script src="/static/memo-sync.js"></script>
     <script src="/static/memo-core.js"></script>
-    <script src="/static/memo-variant-finance.js"></script>
+    <script>
+        (function () {
+            var variantScript = 'memo-variant-finance.js';
+            var isCapacitor = !!window.__CAP_MODE__ || location.protocol === 'capacitor:' || location.protocol === 'ionic:' || location.protocol === 'file:';
+            if (isCapacitor) {
+                var v = (window.MEMO_VARIANT || localStorage.getItem('memo_variant') || 'finance').trim().toLowerCase();
+                if (v === 'default') variantScript = 'memo-variant-default.js';
+            }
+            document.write('<script src="/static/' + variantScript + '"><\\/script>');
+        })();
+    </script>
     <script src="/static/memo-filter.js"></script>
     <script src="/static/memo-lightbox.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>

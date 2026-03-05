@@ -3,6 +3,34 @@
  * Handles reliable operation queuing, retry logic, and sync
  */
 
+function queueGetContracts() {
+  return window.MemoContracts || null;
+}
+
+function queueGetRuntime() {
+  return window.MemoRuntime || null;
+}
+
+function queueGetApiBase() {
+  const runtime = queueGetRuntime();
+  if (runtime && typeof runtime.getApiBase === 'function') {
+    return runtime.getApiBase();
+  }
+  const contracts = queueGetContracts();
+  if (contracts && typeof contracts.getApiBase === 'function') {
+    return contracts.getApiBase();
+  }
+  return '';
+}
+
+function queueGetVariant() {
+  const contracts = queueGetContracts();
+  if (contracts && typeof contracts.getVariant === 'function') {
+    return contracts.getVariant();
+  }
+  return window.MEMO_VARIANT || 'default';
+}
+
 const OperationQueue = {
   queue: [],
   lastServerOpId: 0,
@@ -29,13 +57,8 @@ const OperationQueue = {
       console.log('   ✅ Device ID loaded:', this.deviceId);
     }
     
-    const Runtime = window.MemoRuntime || null;
-    const Contracts = window.MemoContracts || null;
-    const getApiBase = () => (Runtime ? Runtime.getApiBase() : (Contracts ? Contracts.getApiBase() : ''));
-    const getVariant = () => (Contracts ? Contracts.getVariant() : (window.MEMO_VARIANT || 'default'));
-
     // Load queue from localStorage
-    const variant = getVariant();
+    const variant = queueGetVariant();
     const queueKey = `memo_operation_queue_${variant}`;
     console.log('   Loading queue from:', queueKey);
     
@@ -144,7 +167,7 @@ const OperationQueue = {
   async applyOperationLocally(operation) {
     const { db } = window.MemoCore.getState();
     const entryId = operation.entryId;
-    const apiBase = getApiBase().replace(/\/$/, '');
+    const apiBase = queueGetApiBase().replace(/\/$/, '');
     
     // Helper to convert relative URLs to absolute
     const fixImageUrl = (url) => {
@@ -278,7 +301,8 @@ const OperationQueue = {
     }
     
     // Only sync when we have a remote server configured
-    const hasRemoteServer = getApiBase() && getApiBase().trim() !== '';
+    const apiBase = queueGetApiBase();
+    const hasRemoteServer = apiBase && apiBase.trim() !== '';
     if (!hasRemoteServer) {
       return;
     }
@@ -438,7 +462,7 @@ const OperationQueue = {
     console.log(`📤 Uploading ${filename} (hash: ${clientHash.substr(0, 8)}...)`);
     
     // Upload to server
-    let apiBase = getApiBase() || '';
+    let apiBase = queueGetApiBase() || '';
     apiBase = apiBase.replace(/\/$/, '');
     const uploadUrl = `${apiBase}/api/upload`;
     
@@ -492,9 +516,9 @@ const OperationQueue = {
    * Push an operation to server
    */
   async pushOperationToServer(op) {
-    let apiBase = getApiBase() || '';
+    let apiBase = queueGetApiBase() || '';
     apiBase = apiBase.replace(/\/$/, '');
-    const variant = getVariant();
+    const variant = queueGetVariant();
     const url = `${apiBase}/api/operations/push?variant=${variant}`;
     
     console.log(`📡 Push URL: ${url}`);
@@ -574,9 +598,9 @@ const OperationQueue = {
    * Pull new operations from server and apply them
    */
   async pullServerOperations() {
-    let apiBase = getApiBase() || '';
+    let apiBase = queueGetApiBase() || '';
     apiBase = apiBase.replace(/\/$/, '');
-    const variant = getVariant();
+    const variant = queueGetVariant();
     const url = `${apiBase}/api/operations/pull?variant=${variant}&sinceOpId=${this.lastServerOpId}`;
     
     console.log(`📥 Pulling operations from server...`);
@@ -703,7 +727,7 @@ const OperationQueue = {
    * Save queue to localStorage
    */
   saveQueue() {
-    const variant = getVariant();
+    const variant = queueGetVariant();
     const queueKey = `memo_operation_queue_${variant}`;
     const data = {
       queue: this.queue,

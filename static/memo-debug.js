@@ -179,6 +179,63 @@
     
     // Log initial info
     console.log('🐛 Debug Logger initialized');
+
+    function logViewportMetrics(reason) {
+      const vv = window.visualViewport || null;
+      const orientationType = (screen.orientation && screen.orientation.type) ? screen.orientation.type : 'unknown';
+      const orientationAngle = (screen.orientation && typeof screen.orientation.angle === 'number')
+        ? screen.orientation.angle
+        : (typeof window.orientation === 'number' ? window.orientation : 'n/a');
+
+      const metrics = {
+        reason: reason,
+        location: window.location.href,
+        protocol: window.location.protocol,
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        outerWidth: window.outerWidth,
+        outerHeight: window.outerHeight,
+        clientWidth: document.documentElement ? document.documentElement.clientWidth : null,
+        clientHeight: document.documentElement ? document.documentElement.clientHeight : null,
+        visualViewport: vv ? {
+          width: vv.width,
+          height: vv.height,
+          scale: vv.scale,
+          offsetLeft: vv.offsetLeft,
+          offsetTop: vv.offsetTop,
+          pageLeft: vv.pageLeft,
+          pageTop: vv.pageTop
+        } : null,
+        screenWidth: screen.width,
+        screenHeight: screen.height,
+        availWidth: screen.availWidth,
+        availHeight: screen.availHeight,
+        devicePixelRatio: window.devicePixelRatio,
+        orientationType: orientationType,
+        orientationAngle: orientationAngle,
+        capMode: !!(window.CAP_BOOT || window.__CAP_MODE__),
+        memoVariant: window.MEMO_VARIANT || 'default'
+      };
+
+      console.log('📐 Viewport metrics', metrics);
+    }
+
+    const logViewportMetricsDebounced = (() => {
+      let timer = null;
+      return (reason) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => logViewportMetrics(reason), 120);
+      };
+    })();
+
+    logViewportMetrics('init');
+
+    window.addEventListener('resize', () => logViewportMetricsDebounced('resize'));
+    window.addEventListener('orientationchange', () => logViewportMetricsDebounced('orientationchange'));
+    if (window.visualViewport && window.visualViewport.addEventListener) {
+      window.visualViewport.addEventListener('resize', () => logViewportMetricsDebounced('visualViewport.resize'));
+      window.visualViewport.addEventListener('scroll', () => logViewportMetricsDebounced('visualViewport.scroll'));
+    }
     
     // Wait a bit for memo-core.js to set global variables
     setTimeout(() => {
@@ -186,6 +243,7 @@
       console.log('🌐 API Base:', getApiBase() || '(empty - same origin)');
       console.log('📦 Variant:', window.MEMO_VARIANT || 'default');
       console.log('🔧 Capacitor:', !!(window.CAP_BOOT || window.__CAP_MODE__));
+      logViewportMetrics('post-init-100ms');
     }, 100);
   }
   

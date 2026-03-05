@@ -26,8 +26,13 @@
       return String(global.MEMO_VARIANT).toLowerCase();
     }
     var meta = (typeof document !== 'undefined') ? document.querySelector('meta[name="memo-variant"]') : null;
-    var v = (meta && meta.getAttribute('content') || 'default').trim().toLowerCase();
-    return (v === 'finance' || v === 'default') ? v : 'default';
+    var metaValue = (meta && meta.getAttribute('content') || '').trim().toLowerCase();
+    if (metaValue === 'finance' || metaValue === 'default') {
+      return metaValue;
+    }
+    var stored = '';
+    try { stored = (global.localStorage && global.localStorage.getItem('memo_variant') || '').trim().toLowerCase(); } catch (_ignored) {}
+    return (stored === 'finance' || stored === 'default') ? stored : 'default';
   }
 
   function registerService(name, service) {

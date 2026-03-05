@@ -1,7 +1,51 @@
 // Finance variant: table view with purchaseDate, items, tax, total
 (function(){
   const { els } = window.MemoCore.getState();
-  
+  document.body.classList.add('finance-variant');
+
+  // ─── Viewport-class system ───────────────────────────────────────────────
+  // CSS @media rules don't re-evaluate on orientation change in Capacitor's
+  // WebView; drive column-hiding via body classes instead (updated by JS).
+  // Maps a width to a named bucket so re-render only fires when we cross a
+  // breakpoint — not on every pixel of a smooth resize.
+  function _vwBucket(w) {
+    if (w >= 880) return 'xl';
+    if (w >= 600) return 'lg';
+    if (w >= 420) return 'sm';
+    if (w >= 360) return 'xs';
+    if (w >= 340) return 'xxs';
+    return 'tiny';
+  }
+  let _lastVwBucket = null;
+
+  function updateVwClasses() {
+    const w = (window.visualViewport ? window.visualViewport.width : 0) || window.innerWidth;
+    document.body.classList.toggle('vw-lt-880', w < 880);
+    document.body.classList.toggle('vw-lt-600', w < 600);
+    document.body.classList.toggle('vw-lt-420', w < 420);
+    document.body.classList.toggle('vw-lt-360', w < 360);
+    document.body.classList.toggle('vw-lt-340', w < 340);
+    // Re-render only when we cross a breakpoint boundary so table-layout:fixed
+    // recalculates column widths. Guards against render loops on smooth resize.
+    const bucket = _vwBucket(w);
+    if (bucket !== _lastVwBucket) {
+      _lastVwBucket = bucket;
+      clearTimeout(window.__financeVwTimer);
+      window.__financeVwTimer = setTimeout(function() {
+        if (window.MemoVariant && typeof window.MemoVariant.renderFeed === 'function') {
+          window.MemoVariant.renderFeed();
+        }
+      }, 180);
+    }
+  }
+  updateVwClasses();
+  window.addEventListener('resize', updateVwClasses);
+  window.addEventListener('orientationchange', function() { setTimeout(updateVwClasses, 320); });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', updateVwClasses);
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   // New elements
   els.itemsTable = document.querySelector('#itemsTable tbody');
   els.addItemBtn = document.getElementById('addItemBtn');
@@ -278,7 +322,7 @@
       return acc;
     }, { subtotal: 0, tax: 0, total: 0 });
 
-    if (els.feed) els.feed.innerHTML = '';
+    if (els.feed) { els.feed.innerHTML = ''; els.feed.dataset.listmode = 'table'; }
     const wrap = document.createElement('div'); wrap.className = 'tablewrap';
     const table = document.createElement('table'); table.className = 'listtable';
     table.innerHTML = `
@@ -379,7 +423,7 @@
           subtotal = (parseFloat(e.price) || 0) + (parseFloat(e.adjustment) || 0);
       }
 
-      const priceCell = document.createElement('td'); priceCell.className = 'col-price'; priceCell.textContent = formatMoney(subtotal); tr.appendChild(priceCell);
+        const priceCell = document.createElement('td'); priceCell.className = 'col-price'; priceCell.textContent = formatMoney(subtotal); tr.appendChild(priceCell);
       const taxCell = document.createElement('td'); taxCell.className = 'col-tax'; taxCell.textContent = formatMoney(e.tax, true); tr.appendChild(taxCell);
       const totalCell = document.createElement('td'); totalCell.className = 'col-total'; totalCell.textContent = formatMoney(e.total); tr.appendChild(totalCell);
 

@@ -4,7 +4,7 @@
 
 <head>
     <meta charset="utf-8" />
-    <meta content="width=device-width, initial-scale=1" name="viewport" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Memo — Personal Database &amp; Notes</title>
     <script>
         (function () {
@@ -13,8 +13,12 @@
             var script = document.createElement('script');
             script.src = staticBase + 'memo-bootstrap.js';
             script.onload = function () {
+                var variant = '';
+                try { variant = (localStorage.getItem('memo_variant') || '').trim().toLowerCase(); } catch (_ignored) {}
+                var cssFiles = ['memo.css'];
+                if (variant === 'finance') cssFiles.push('memo-finance.css');
                 window.MemoBootstrap.initHead({
-                    cssFiles: ['memo.css'],
+                    cssFiles: cssFiles,
                     hideWhenCapacitor: ['#chooseDirBtn', '#fsHint']
                 });
             };
@@ -29,8 +33,8 @@
             <div class="brand-dropdown">
                 <button class="brand" onclick="document.getElementById('brandMenu').classList.toggle('show')">🗂️ Memo ▾</button>
                 <div id="brandMenu" class="dropdown-content">
-                    <a href="">🗂️ Memo</a>
-                    <a href="finance.html">💸 Finance</a>
+                    <a href="index.html" data-variant="default">🗂️ Memo</a>
+                    <a href="finance.html" data-variant="finance">💸 Finance</a>
                 </div>
             </div>
             <div class="spacer"></div>
@@ -481,7 +485,14 @@
     <script src="/static/memo-operation-queue.js"></script>
     <script src="/static/memo-sync.js"></script>
     <script src="/static/memo-core.js"></script>
-    <script src="/static/memo-variant-default.js"></script>
+    <script>
+        (function () {
+            var variantScript = 'memo-variant-default.js';
+            var v = (window.MEMO_VARIANT || localStorage.getItem('memo_variant') || 'default').trim().toLowerCase();
+            if (v === 'finance') variantScript = 'memo-variant-finance.js';
+            document.write('<script src="/static/' + variantScript + '"><\\/script>');
+        })();
+    </script>
     <script src="/static/memo-filter.js"></script>
     <script src="/static/memo-lightbox.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
