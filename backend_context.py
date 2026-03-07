@@ -5,7 +5,10 @@ from services.backup import BackupService
 from services.export import ExportService
 from services.frontend import FrontendService
 from services.json_store import JsonStoreService
+from services.llm import create_llm_service
 from services.memos import MemosService
+from services.ocr_draft import OcrDraftService
+from services.ocr_reader import OcrReader
 from services.operations import OperationsService
 from services.upload import UploadService
 
@@ -23,6 +26,7 @@ class BackendContext:
         self.chat_default_file = os.path.join(self.data_dir, 'chat.json')
         self.chat_finance_file = os.path.join(self.data_dir, 'chat_finance.json')
         self.hashbook_file = os.path.join(self.data_dir, 'hashbook.json')
+        self.llm_config_file = os.path.join(self.data_dir, 'llm_config.json')
 
         self.operations_file = os.path.join(self.data_dir, 'operations.json')
         self.operations_finance_file = os.path.join(self.data_dir, 'operations_finance.json')
@@ -40,6 +44,7 @@ class BackendContext:
             self.snapshot_file: {'snapshotId': 0, 'timestamp': 0, 'entries': []},
             self.snapshot_finance_file: {'snapshotId': 0, 'timestamp': 0, 'entries': []},
             self.hashbook_file: {},
+            self.llm_config_file: {},
         }
 
         self.json_schema_versions = {
@@ -52,11 +57,13 @@ class BackendContext:
             self.snapshot_file: 1,
             self.snapshot_finance_file: 1,
             self.hashbook_file: 1,
+            self.llm_config_file: 1,
         }
 
-        self.llm_provider = 'gemini'
+        self.llm_provider = os.environ.get('LLM_PROVIDER', 'gemini')
         self.openai_api_key = os.environ.get('OPENAI_API_KEY')
         self.gemini_api_key = os.environ.get('GEMINI_API_KEY')
+        self.deepseek_api_key = os.environ.get('DEEPSEEK_API_KEY')
         self.llm_model = os.environ.get('LLM_MODEL')
         self.llm_system_prompt = (
             'You are an efficient assistant embedded in a personal memo system.'
@@ -96,6 +103,23 @@ class BackendContext:
         self.backup_service = BackupService()
         self.export_service = ExportService()
         self.frontend_service = FrontendService()
+
+        # LLM / OCR services
+        llm_cfg = self._read_json(self.llm_config_file) or {}
+        self.llm_service = create_llm_service(
+            provider=llm_cfg.get('provider') or self.llm_provider,
+            openai_key=llm_cfg.get('openai_api_key') or self.openai_api_key,
+            gemini_key=llm_cfg.get('gemini_api_key') or self.gemini_api_key,
+            deepseek_key=llm_cfg.get('deepseek_api_key') or self.deepseek_api_key,
+            model=llm_cfg.get('model') or self.llm_model,
+        )
+        self.ocr_draft_service = OcrDraftService(
+            lock=self.lock,
+            read_hashbook=self.upload_service.hashbook._read_hashbook,
+            write_hashbook=self.upload_service.hashbook._write_hashbook,
+        )
+        # Traditional OCR helper (best-effort; gracefully disabled if backends missing)
+        self.ocr_reader = OcrReader(languages=['en'])
 
     def _initialize_json_files(self):
         print('📨 Running JSON startup integrity checks...')
@@ -141,6 +165,45 @@ class BackendContext:
             return 'finance'
 
         return 'default'
+
+    def get_llm_config(self) -> dict:
+        """Return current LLM config dict (including keys for internal use)."""
+        with self.lock:
+            return self._read_json(self.llm_config_file) or {}
+
+    def save_llm_config(self, config: dict):
+        """Persist LLM config and reinitialise the service."""
+        with self.lock:
+            self._write_json(self.llm_config_file, config)
+        self.reload_llm_service(config)
+
+    def reload_llm_service(self, config: dict = None):
+        """Re-create llm_service from the given config (or re-read from file)."""
+        if config is None:
+            config = self.get_llm_config()
+        self.llm_service = create_llm_service(
+            provider=config.get('provider') or self.llm_provider,
+            openai_key=config.get('openai_api_key') or self.openai_api_key,
+            gemini_key=config.get('gemini_api_key') or self.gemini_api_key,
+            deepseek_key=config.get('deepseek_api_key') or self.deepseek_api_key,
+            model=config.get('model') or self.llm_model,
+        )
+
+    def get_llm_config_safe(self) -> dict:
+        """Return LLM config with keys redacted (safe to send to frontend)."""
+        cfg = self.get_llm_config()
+        provider = cfg.get('provider') or self.llm_provider or 'gemini'
+        is_deepseek = provider.lower() == 'deepseek'
+        # ocr_enabled: always True for deepseek, else persisted value (default False)
+        ocr_enabled = True if is_deepseek else bool(cfg.get('ocr_enabled', False))
+        return {
+            'provider': provider,
+            'model': cfg.get('model') or '',
+            'ocr_enabled': ocr_enabled,
+            'gemini_key_set': bool(cfg.get('gemini_api_key') or self.gemini_api_key),
+            'openai_key_set': bool(cfg.get('openai_api_key') or self.openai_api_key),
+            'deepseek_key_set': bool(cfg.get('deepseek_api_key') or self.deepseek_api_key),
+        }
 
     def data_file_for_variant(self, variant: str) -> str:
         return self.finance_data_file if variant == 'finance' else self.data_file

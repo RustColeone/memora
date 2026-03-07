@@ -1,5 +1,6 @@
 /* ---------- Lightbox: focus-preserving, animated zoom; drag only while held ---------- */
 let lbState = { eid: null, idx: 0, scale: 1, x: 0, y: 0, baseW: 0, baseH: 0, lastTap: 0 };
+let lbDirectImages = null; // non-null when previewing edit-modal images directly
 
 let rafId = null;
 function scheduleDraw() { if (rafId) return; rafId = requestAnimationFrame(() => { rafId = null; applyLbTransform(); }); }
@@ -20,6 +21,40 @@ function animateTo(targetScale, targetX, targetY, ms = 170) {
     requestAnimationFrame(step);
 }
 let lbReopen = null;
+
+// Preview images directly from the edit modal (blob: or /uploads/ URLs)
+// without requiring a saved entry. Snapshots & restores modal state.
+function openLightboxDirect(srcs, startIdx) {
+    lbReopen = null;
+    lbDirectImages = srcs.slice();
+    if (els.entryDlg && els.entryDlg.open) {
+        lbReopen = {
+            type: 'entry',
+            data: {
+                wasEditingId: editingId,
+                desc: els.desc ? els.desc.value : '',
+                category: els.categoryInput ? els.categoryInput.value : '',
+                newCategory: els.newCategory ? els.newCategory.value : '',
+                tags: [...workingTags],
+                images: modalImages.map(mi => ({ ...mi }))
+            }
+        };
+        els.entryDlg.close();
+    }
+    lbState = { eid: null, idx: startIdx, scale: 1, x: 0, y: 0, baseW: 0, baseH: 0, lastTap: 0 };
+    els.lbImg.onload = () => {
+        const r = els.lbImg.getBoundingClientRect();
+        lbState.baseW = r.width; lbState.baseH = r.height;
+        lbState.scale = 1; lbState.x = 0; lbState.y = 0;
+        applyLbTransform();
+    };
+    els.lbImg.src = srcs[startIdx];
+    updateLbCounter();
+    updateLbNavVisibility();
+    els.lightbox.classList.add('open');
+    els.lightbox.setAttribute('aria-hidden', 'false');
+}
+
 function openLightbox(eid, idx) {
     // Capture & close any open dialog so the lightbox is fully interactable
     lbReopen = null;
@@ -62,6 +97,7 @@ function openLightbox(eid, idx) {
 }
 
 function closeLightbox() {
+    lbDirectImages = null; // clear direct-preview mode
     els.lightbox.classList.remove('open');
     els.lightbox.setAttribute('aria-hidden', 'true');
 
@@ -93,7 +129,10 @@ function closeLightbox() {
         rebuildDragGrid();
     }
 }
-function currentEntry() { return db.entries.find(x => x.id === lbState.eid); }
+function currentEntry() {
+    if (lbDirectImages) return { images: lbDirectImages };
+    return db.entries.find(x => x.id === lbState.eid);
+}
 function updateLbCounter() { const e = currentEntry(); if (!e) return; els.lbCounter.textContent = `${lbState.idx + 1}/${e.images.length}`; }
 function updateLbNavVisibility() {
     const e = currentEntry(); if (!e) return;

@@ -9,6 +9,7 @@ from api import (
     create_export_blueprint,
     create_frontend_blueprint,
     create_memo_blueprint,
+    create_ocr_blueprint,
     create_operations_blueprint,
     create_upload_blueprint,
 )
@@ -44,6 +45,7 @@ def create_app():
     app.register_blueprint(create_operations_blueprint(context))
     app.register_blueprint(create_memo_blueprint(context))
     app.register_blueprint(create_upload_blueprint(context, app))
+    app.register_blueprint(create_ocr_blueprint(context, app))
     app.register_blueprint(create_export_blueprint(context))
     app.register_blueprint(create_backup_blueprint(context))
     app.register_blueprint(create_frontend_blueprint(context))

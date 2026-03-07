@@ -96,6 +96,31 @@
     originalConsole.info.apply(console, args);
   };
   
+  // Click tracer — logs what element was clicked to the debug log
+  document.addEventListener('click', function(ev) {
+    var el = ev.target;
+    var tag = el.tagName ? el.tagName.toLowerCase() : '?';
+    var id = el.id ? '#' + el.id : '';
+    var cls = el.className && typeof el.className === 'string' && el.className.trim()
+      ? '.' + el.className.trim().split(/\s+/).join('.')
+      : '';
+    var text = (el.textContent || '').trim().slice(0, 60);
+    if (text) text = ' "' + text + '"';
+    // Walk up to build a short path (up to 4 ancestors)
+    var path = [];
+    var cur = el.parentElement;
+    for (var i = 0; i < 4 && cur && cur !== document.body; i++) {
+      var part = cur.tagName.toLowerCase();
+      if (cur.id) part += '#' + cur.id;
+      else if (cur.className && typeof cur.className === 'string' && cur.className.trim())
+        part += '.' + cur.className.trim().split(/\s+/)[0];
+      path.unshift(part);
+      cur = cur.parentElement;
+    }
+    var ancestor = path.length ? path.join(' > ') + ' > ' : '';
+    console.log('[click] ' + ancestor + tag + id + cls + text);
+  }, true); // capture so we see it even if handlers call stopPropagation
+
   // Wait for DOM
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

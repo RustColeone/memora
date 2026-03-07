@@ -536,6 +536,14 @@ function rebuildDragGrid() {
             modalImages.splice(i, 1);
             rebuildDragGrid();
         });
+        const gridImg = d.querySelector('img');
+        gridImg.style.cursor = 'zoom-in';
+        gridImg.title = 'Click to preview';
+        d.addEventListener('click', (ev) => {
+            if (ev.target.closest('.delimg') || ev.target.closest('.handle')) return;
+            ev.stopPropagation();
+            openLightboxDirect(modalImages.map(m => m.src), idx);
+        });
         d.addEventListener('dragstart', (ev) => { dragSrcIdx = idx; d.classList.add('dragging'); ev.dataTransfer.effectAllowed = 'move'; });
         d.addEventListener('dragend', () => { d.classList.remove('dragging'); dragSrcIdx = null; });
         d.addEventListener('dragover', (ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; });

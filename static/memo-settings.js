@@ -42,6 +42,18 @@
     const importDataInput = document.getElementById('importDataInput');
     const importExportStatus = document.getElementById('importExportStatus');
 
+    // AI settings elements
+    const llmProviderSelect = document.getElementById('llmProviderSelect');
+    const llmModelInput = document.getElementById('llmModelInput');
+    const geminiApiKeyInput = document.getElementById('geminiApiKeyInput');
+    const openaiApiKeyInput = document.getElementById('openaiApiKeyInput');
+    const deepseekApiKeyInput = document.getElementById('deepseekApiKeyInput');
+    const saveLlmConfig = document.getElementById('saveLlmConfig');
+    const llmConfigStatus = document.getElementById('llmConfigStatus');
+    const aiSettingsSection = document.getElementById('aiSettingsSection');
+    const ocrEnabledToggle = document.getElementById('ocrEnabledToggle');
+    const ocrToggleNote = document.getElementById('ocrToggleNote');
+
     if (!settingsDlg) return;
 
     // Determine mode
@@ -127,6 +139,14 @@
       
       settingsDlg.showModal();
       
+      // Load LLM config if in server mode
+      if (getMode() === 'server' && aiSettingsSection) {
+        aiSettingsSection.style.display = '';
+        loadLlmConfig();
+      } else if (aiSettingsSection) {
+        aiSettingsSection.style.display = 'none';
+      }
+
       // Close mobile menu if open
       const mobileMenu = document.getElementById('mobileMenu');
       const mobileOverlay = document.getElementById('mobileOverlay');
@@ -162,6 +182,135 @@
       element.className = type; // 'success', 'error', 'info'
       if (element === importExportStatus) {
         element.style.display = 'block';
+      }
+    }
+
+    // Vision-capable providers (must match backend _VISION_PROVIDERS)
+    const VISION_PROVIDERS = new Set(['gemini', 'openai']);
+
+    // LLM provider key-row visibility toggle
+    function updateKeyRows(provider) {
+      const geminiRow = document.getElementById('geminiKeyRow');
+      const openaiRow = document.getElementById('openaiKeyRow');
+      const deepseekRow = document.getElementById('deepseekKeyRow');
+      if (geminiRow) geminiRow.style.display = provider === 'gemini' ? '' : 'none';
+      if (openaiRow) openaiRow.style.display = provider === 'openai' ? '' : 'none';
+      if (deepseekRow) deepseekRow.style.display = provider === 'deepseek' ? '' : 'none';
+      const modelPlaceholders = { gemini: 'gemini-2.0-flash', openai: 'gpt-4o', deepseek: 'deepseek-chat' };
+      if (llmModelInput) llmModelInput.placeholder = modelPlaceholders[provider] || 'default';
+      // OCR toggle: force-on+locked for DeepSeek, user-controlled for vision providers
+      const isDeepseek = (provider || '').toLowerCase() === 'deepseek';
+      if (ocrEnabledToggle) {
+        if (isDeepseek) {
+          ocrEnabledToggle.checked = true;
+          ocrEnabledToggle.disabled = true;
+          if (ocrToggleNote) ocrToggleNote.textContent = '(required for DeepSeek)';
+        } else {
+          ocrEnabledToggle.disabled = false;
+          if (ocrToggleNote) ocrToggleNote.textContent = VISION_PROVIDERS.has(provider) ? '(optional — fuses with vision)' : '';
+        }
+      }
+      // Update OCR capability banner when provider changes
+      updateOcrCapabilityBanner(provider).catch(() => {});
+    }
+
+    async function updateOcrCapabilityBanner(provider) {
+      const banner = document.getElementById('ocrCapabilityStatus');
+      if (!banner) return;
+      banner.textContent = '';
+      if (getMode() !== 'server') return;
+      const ocrOn = ocrEnabledToggle ? ocrEnabledToggle.checked : true;
+      try {
+        const r = await fetch(getApiBase() + '/api/ocr/capabilities');
+        if (!r.ok) return;
+        const cap = await r.json();
+        const usingDeepseek = (provider || '').toLowerCase() === 'deepseek';
+        const visionCapable = !!cap.vision_capable;
+        const ocrAvail = cap.ocr && !!cap.ocr.available;
+        const backend = cap.ocr ? (cap.ocr.backend || '') : '';
+        if (usingDeepseek) {
+          if (ocrAvail) {
+            banner.textContent = `DeepSeek is text-only — OCR (${backend}) is active for images.`;
+            banner.className = 'info';
+          } else {
+            banner.textContent = 'DeepSeek is text-only. OCR not installed — install EasyOCR or Tesseract for image text extraction.';
+            banner.className = 'error';
+          }
+        } else if (!visionCapable && !ocrAvail) {
+          banner.textContent = 'Selected provider cannot read images and no OCR is available.';
+          banner.className = 'error';
+        } else if (visionCapable) {
+          if (ocrAvail && ocrOn) {
+            banner.textContent = `Vision model active. OCR (${backend}) fusion enabled — extracted text will supplement the vision result.`;
+            banner.className = 'info';
+          } else if (ocrAvail && !ocrOn) {
+            banner.textContent = 'Vision model active. OCR is available but disabled — toggle on to fuse extracted text.';
+            banner.className = 'info';
+          } else {
+            banner.textContent = 'Vision model active.';
+            banner.className = 'info';
+          }
+        } else {
+          banner.textContent = '';
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    async function loadLlmConfig() {
+      try {
+        const resp = await fetch(getApiBase() + '/api/llm/config');
+        if (!resp.ok) return;
+        const cfg = await resp.json();
+        if (llmProviderSelect) {
+          llmProviderSelect.value = cfg.provider || 'gemini';
+          updateKeyRows(llmProviderSelect.value);
+        }
+        // Restore OCR toggle — force-on for DeepSeek (already handled in updateKeyRows)
+        if (ocrEnabledToggle && !ocrEnabledToggle.disabled) {
+          ocrEnabledToggle.checked = cfg.ocr_enabled !== false; // default true
+        }
+        await updateOcrCapabilityBanner(llmProviderSelect ? llmProviderSelect.value : 'gemini');
+        if (llmModelInput) llmModelInput.value = cfg.model || '';
+        if (geminiApiKeyInput) geminiApiKeyInput.placeholder = cfg.gemini_key_set ? '••••••••• (set)' : 'Paste Gemini API key';
+        if (openaiApiKeyInput) openaiApiKeyInput.placeholder = cfg.openai_key_set ? '••••••••• (set)' : 'Paste OpenAI API key';
+        if (deepseekApiKeyInput) deepseekApiKeyInput.placeholder = cfg.deepseek_key_set ? '••••••••• (set)' : 'Paste DeepSeek API key';
+        if (llmConfigStatus) llmConfigStatus.textContent = '';
+      } catch (e) {
+        if (llmConfigStatus) llmConfigStatus.textContent = 'Could not load AI settings.';
+      }
+    }
+
+    async function handleSaveLlmConfig() {
+      const provider = llmProviderSelect ? llmProviderSelect.value : 'gemini';
+      const model = llmModelInput ? llmModelInput.value.trim() : '';
+      // OCR toggle: always true for DeepSeek (checkbox is disabled+checked), user value otherwise
+      const ocrEnabled = ocrEnabledToggle ? ocrEnabledToggle.checked : true;
+      const payload = { provider, model, ocr_enabled: ocrEnabled };
+      if (geminiApiKeyInput && geminiApiKeyInput.value.trim()) payload.gemini_api_key = geminiApiKeyInput.value.trim();
+      if (openaiApiKeyInput && openaiApiKeyInput.value.trim()) payload.openai_api_key = openaiApiKeyInput.value.trim();
+      if (deepseekApiKeyInput && deepseekApiKeyInput.value.trim()) payload.deepseek_api_key = deepseekApiKeyInput.value.trim();
+
+      if (llmConfigStatus) { llmConfigStatus.textContent = '⏳ Saving…'; llmConfigStatus.className = 'info'; }
+      try {
+        const resp = await fetch(getApiBase() + '/api/llm/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+          if (llmConfigStatus) { llmConfigStatus.textContent = '✓ ' + (data.message || 'Saved'); llmConfigStatus.className = 'success'; }
+          if (geminiApiKeyInput) geminiApiKeyInput.value = '';
+          if (openaiApiKeyInput) openaiApiKeyInput.value = '';
+          if (deepseekApiKeyInput) deepseekApiKeyInput.value = '';
+          loadLlmConfig();
+        } else {
+          if (llmConfigStatus) { llmConfigStatus.textContent = '✗ ' + (data.message || 'Error'); llmConfigStatus.className = 'error'; }
+        }
+      } catch (e) {
+        if (llmConfigStatus) { llmConfigStatus.textContent = '✗ ' + e.message; llmConfigStatus.className = 'error'; }
       }
     }
 
@@ -760,6 +909,10 @@
     
     if (exportDataBtn) exportDataBtn.addEventListener('click', handleExportData);
     if (importDataInput) importDataInput.addEventListener('change', handleImportData);
+
+    if (llmProviderSelect) llmProviderSelect.addEventListener('change', () => updateKeyRows(llmProviderSelect.value));
+    if (ocrEnabledToggle) ocrEnabledToggle.addEventListener('change', () => updateOcrCapabilityBanner(llmProviderSelect ? llmProviderSelect.value : 'gemini').catch(() => {}));
+    if (saveLlmConfig) saveLlmConfig.addEventListener('click', handleSaveLlmConfig);
 
     // Close on backdrop click
     if (settingsDlg) {

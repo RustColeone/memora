@@ -92,6 +92,14 @@ class UploadService:
         except OSError:
             pass
 
+    def handle_file_object(self, file_obj):
+        """Upload a werkzeug FileStorage object directly (used by OCR route)."""
+        is_duplicate, file_hash, rec = self.hashbook.get_duplicate_record(file_obj)
+        if is_duplicate:
+            self.hashbook.increment_count(file_hash, rec)
+            return {'url': rec['storedPath'], 'duplicate': True, 'hash': file_hash}, 200
+        return self._save_new_upload(file_obj, file_hash)
+
     def handle_upload_request(self, req, use_server_backend: bool):
         if not use_server_backend:
             return {'message': 'Server backend is disabled.'}, 400

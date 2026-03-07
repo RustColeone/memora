@@ -406,7 +406,7 @@
         const fl = document.createElement('div');
         fl.style.display = 'flex'; fl.style.flexDirection = 'column'; fl.style.gap = '2px'; fl.style.marginTop = '4px';
         otherFiles.slice(0,3).forEach(a => {
-          const link = document.createElement('a'); link.href = a.url; link.target = '_blank'; link.rel = 'noopener'; link.textContent = '📄 ' + (a.name || a.url.split('/').pop()); link.style.fontSize='11px'; link.style.color='#93c5fd'; link.style.textDecoration='none'; fl.appendChild(link);
+          const link = document.createElement('a'); link.href = a.url; link.target = '_blank'; link.rel = 'noopener'; link.textContent = '📄 ' + (a.name || a.url.split('/').pop()); link.style.fontSize='11px'; link.style.color='#93c5fd'; link.style.textDecoration='none'; link.addEventListener('click', (ev) => ev.stopPropagation()); fl.appendChild(link);
         });
         if (otherFiles.length > 3) {
           const more = document.createElement('div'); more.className='muted'; more.style.fontSize='10px'; more.textContent = '+'+(otherFiles.length-3)+' more'; fl.appendChild(more);
@@ -619,12 +619,21 @@
     if (els.detailDlg) { els.detailDlg.dataset.entryId = id; els.detailDlg.showModal(); }
   }
 
+  function applyItems(items) {
+    if (!els.itemsTable || !Array.isArray(items) || !items.length) return;
+    els.itemsTable.innerHTML = '';
+    items.forEach(function(item, i) { els.itemsTable.appendChild(createRow(item, i)); });
+    renumberRows();
+    updateGrandTotal();
+  }
+
   window.MemoVariant = {
     renderFeed,
     openDetail,
     normalizeServerMemo,
     openEntryModalHook,
     collectAdditionalFields,
+    applyItems,
   };
 
   window.MemoCore.start();

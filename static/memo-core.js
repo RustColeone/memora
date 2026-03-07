@@ -726,6 +726,10 @@ function renderTagChips() {
     c.querySelector('button').addEventListener('click', () => { workingTags.delete(t); renderTagChips(); });
     els.tagChips.appendChild(c);
   }
+  // OCR: refresh suggested-tag styling after chips render
+  if (window.MemoOcr && typeof window.MemoOcr.refreshSuggestedTagStyles === 'function') {
+    window.MemoOcr.refreshSuggestedTagStyles();
+  }
 }
 
 // =======================
@@ -759,11 +763,19 @@ function openEntryModal(entry = null) {
   if (Array.isArray(entry?.attachments)) {
     entry.attachments.forEach(att => {
       if (!att || !att.url) return;
-      const isImg = /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i.test(att.url);
+      // Normalize absolute URLs (e.g. http://localhost:5050/uploads/...) to relative paths
+      let attUrl = att.url;
+      try {
+        if (/^https?:\/\//i.test(attUrl)) {
+          const u = new URL(attUrl);
+          attUrl = u.pathname;
+        }
+      } catch (_e) {}
+      const isImg = /\.(png|jpe?g|gif|webp|avif|bmp|svg)$/i.test(attUrl);
       if (isImg) {
-        if (!modalImages.some(mi => mi.src === att.url)) modalImages.push({ src: att.url, existing: true, storedPath: att.storedPath || null });
+        if (!modalImages.some(mi => mi.src === attUrl)) modalImages.push({ src: attUrl, existing: true, storedPath: att.storedPath || null });
       } else {
-        modalFilesExtra.push({ name: att.name || att.url.split('/').pop(), url: att.url, existing: true, storedPath: att.storedPath || null, type: att.type || 'application/octet-stream' });
+        modalFilesExtra.push({ name: att.name || attUrl.split('/').pop(), url: attUrl, existing: true, storedPath: att.storedPath || null, type: att.type || 'application/octet-stream' });
       }
     });
   }
@@ -772,6 +784,11 @@ function openEntryModal(entry = null) {
   renderExtraAttachmentsList();
 
   if (els.entryDlg) els.entryDlg.showModal();
+
+  // OCR hook – notify after modal is fully open
+  if (window.MemoOcr && typeof window.MemoOcr.onModalOpen === 'function') {
+    requestAnimationFrame(() => window.MemoOcr.onModalOpen(entry ? entry.id : null));
+  }
 }
 
 // Tag chips/dropdown
@@ -869,6 +886,14 @@ function rebuildDragGrid() {
       modalImages.splice(i, 1);
       rebuildDragGrid();
     });
+    const gridImg = d.querySelector('img');
+    gridImg.style.cursor = 'zoom-in';
+    gridImg.title = 'Click to preview';
+    d.addEventListener('click', (ev) => {
+      if (ev.target.closest('.delimg') || ev.target.closest('.handle')) return;
+      ev.stopPropagation();
+      openLightboxDirect(modalImages.map(m => m.src), idx);
+    });
     d.addEventListener('dragstart', (ev) => { dragSrcIdx = idx; d.classList.add('dragging'); ev.dataTransfer.effectAllowed = 'move'; });
     d.addEventListener('dragend', () => { d.classList.remove('dragging'); dragSrcIdx = null; });
     d.addEventListener('dragover', (ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = 'move'; });
@@ -927,7 +952,10 @@ if (els.dropzone && els.images) {
 }
 
 // ============= Save / Delete =============
-if (els.cancelBtn) els.cancelBtn.addEventListener('click', () => els.entryDlg.close());
+if (els.cancelBtn) els.cancelBtn.addEventListener('click', () => {
+  els.entryDlg.close();
+  if (window.MemoOcr && typeof window.MemoOcr.onModalClose === 'function') window.MemoOcr.onModalClose();
+});
 if (els.saveBtn) els.saveBtn.addEventListener('click', onSaveEntry);
 if (els.closeDetailBtn) els.closeDetailBtn.addEventListener('click', () => els.detailDlg.close());
 if (els.deleteBtn) els.deleteBtn.addEventListener('click', onDeleteEntry);
@@ -983,12 +1011,21 @@ async function onSaveEntry() {
     for (let i = 0; i < filesToSave.length; i++) {
       const f = filesToSave[i].file;
       const res = await ServerAPI.upload(f);
-      if (res && res.url) imagesFinal.push(res.url);
+      if (res && res.url) {
+        let savedUrl = res.url;
+        try { if (/^https?:\/\//i.test(savedUrl)) savedUrl = new URL(savedUrl).pathname; } catch(_e) {}
+        imagesFinal.push(savedUrl);
+      }
     }
     for (let i = 0; i < extraToSave.length; i++) {
       const f = extraToSave[i].file;
       const res = await ServerAPI.upload(f);
-      if (res && res.url) attachmentsFinal.push({ name: f.name, url: res.url, type: f.type || 'application/octet-stream' });
+      if (res && res.url) {
+        // Normalize to relative path in case server returned an absolute URL
+        let savedUrl = res.url;
+        try { if (/^https?:\/\//i.test(savedUrl)) savedUrl = new URL(savedUrl).pathname; } catch(_e) {}
+        attachmentsFinal.push({ name: f.name, url: savedUrl, type: f.type || 'application/octet-stream' });
+      }
     }
     entry.images = imagesFinal;
     entry.attachments = attachmentsFinal.concat(
@@ -1195,6 +1232,14 @@ async function onSaveEntry() {
   if (els.entryDlg) els.entryDlg.close();
   recomputeTags(); saveAll();
   renderFeed();
+
+  // OCR hook – commit suggested tags and clear draft after post
+  if (window.MemoOcr && typeof window.MemoOcr.commitSuggestedTags === 'function') {
+    window.MemoOcr.commitSuggestedTags();
+  }
+  if (window.MemoOcr && typeof window.MemoOcr.onModalClose === 'function') {
+    window.MemoOcr.onModalClose();
+  }
 }
 
 async function onDeleteEntry() {
@@ -1539,6 +1584,13 @@ async function coreInit() {
   renderFeed();
   if (els.fsStatus) els.fsStatus.textContent = settings.fsEnabled ? 'enabled' : 'disabled';
 
+  // OCR: fire onModalClose when dialog closes (ESC or backdrop click)
+  if (els.entryDlg) {
+    els.entryDlg.addEventListener('close', () => {
+      if (window.MemoOcr && typeof window.MemoOcr.onModalClose === 'function') window.MemoOcr.onModalClose();
+    });
+  }
+
   // Clean up expired deleted entries (30+ days old)
   cleanupExpiredDeletes().catch(err => console.warn('cleanupExpiredDeletes failed:', err));
   updateRecycleBinBadge();
@@ -1694,6 +1746,28 @@ window.MemoCore = {
   IDB_KEY_ROOT: IDB_KEY_ROOT,
   writeEntriesToFS: writeEntriesToFS
 };
+
+// Expose key functions globally so memo-ocr.js (loaded later) can patch them
+window.openEntryModal = openEntryModal;
+window.onSaveEntry = onSaveEntry;
+window.renderTagChips = renderTagChips;
+window.ensureCategory = ensureCategory;
+// workingTags and modalImages/modalFilesExtra are module-scope; expose as getters/setters
+Object.defineProperty(window, 'workingTags', {
+  get: function () { return workingTags; },
+  set: function (v) { workingTags = v; },
+  configurable: true,
+});
+Object.defineProperty(window, 'modalImages', {
+  get: function () { return modalImages; },
+  set: function (v) { modalImages = v; },
+  configurable: true,
+});
+Object.defineProperty(window, 'modalFilesExtra', {
+  get: function () { return modalFilesExtra; },
+  set: function (v) { modalFilesExtra = v; },
+  configurable: true,
+});
 
 // ===== Helpers needed by local FS write path =====
 async function getOrCreateDir(root, name) { return await root.getDirectoryHandle(name, { create: true }); }

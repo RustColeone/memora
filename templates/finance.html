@@ -7,6 +7,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Finance — Purchases &amp; Receipts</title>
     <meta name="memo-variant" content="finance" />
+    <script>try{var __t=localStorage.getItem('memoTheme');if(__t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
+    <link rel="stylesheet" href="/static/memo.css" />
+    <link rel="stylesheet" href="/static/memo-finance.css" />
     <script>
         (function () {
             var hasServer = location.protocol === 'http:' || location.protocol === 'https:';
@@ -15,7 +18,6 @@
             script.src = staticBase + 'memo-bootstrap.js';
             script.onload = function () {
                 window.MemoBootstrap.initHead({
-                    cssFiles: ['memo.css', 'memo-finance.css'],
                     hideWhenCapacitor: ['#chooseDirBtn', '.toolbar .hint']
                 });
             };
@@ -380,14 +382,51 @@
                     <div id="importExportStatus" style="margin-top:12px;padding:8px;border-radius:6px;display:none;"></div>
                 </div>
 
-            </div>
-            <div class="actions">
-                <button class="ghost" id="closeSettings">Close</button>
-            </div>
-        </div>
-    </dialog>
+                <hr style="margin: 5px 0; border: none; border-top: 1px solid var(--border);">
 
-    <!-- Debug Log Dialog -->
+                <!-- AI Analysis Section (server-mode only) -->
+                <div id="aiSettingsSection" class="settings-section">
+                    <h3>🤖 AI Analysis</h3>
+                    <p class="muted">Configure the AI provider used for OCR &amp; image analysis (server mode only).</p>
+                    <div class="form-row">
+                        <label for="llmProviderSelect">Provider:</label>
+                        <select id="llmProviderSelect" style="width:100%;padding:8px;margin-top:4px;background:var(--input-bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;">
+                            <option value="gemini">Google Gemini</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="deepseek">DeepSeek</option>
+                        </select>
+                    </div>
+                    <div class="form-row" style="margin-top:8px;">
+                        <label for="llmModelInput">Model:</label>
+                        <input type="text" id="llmModelInput" placeholder="e.g. gemini-2.0-flash" style="width:100%;padding:8px;margin-top:4px;" />
+                    </div>
+                    <div class="form-row" id="geminiKeyRow" style="margin-top:8px;">
+                        <label for="geminiApiKeyInput">Gemini API Key:</label>
+                        <input type="password" id="geminiApiKeyInput" placeholder="Leave blank to keep existing" style="width:100%;padding:8px;margin-top:4px;" />
+                    </div>
+                    <div class="form-row" id="openaiKeyRow" style="margin-top:8px;display:none;">
+                        <label for="openaiApiKeyInput">OpenAI API Key:</label>
+                        <input type="password" id="openaiApiKeyInput" placeholder="Leave blank to keep existing" style="width:100%;padding:8px;margin-top:4px;" />
+                    </div>
+                    <div class="form-row" id="deepseekKeyRow" style="margin-top:8px;display:none;">
+                        <label for="deepseekApiKeyInput">DeepSeek API Key:</label>
+                        <input type="password" id="deepseekApiKeyInput" placeholder="Leave blank to keep existing" style="width:100%;padding:8px;margin-top:4px;" />
+                    </div>
+                    <div class="form-row" id="ocrToggleRow" style="margin-top:12px;display:flex;align-items:center;gap:10px;">
+                        <label class="toggle-label" for="ocrEnabledToggle" style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;">
+                            <input type="checkbox" id="ocrEnabledToggle" style="width:16px;height:16px;cursor:pointer;" />
+                            <span>Use OCR to extract text from images</span>
+                        </label>
+                        <span id="ocrToggleNote" style="font-size:11px;color:var(--muted);"></span>
+                    </div>
+                    <div class="form-row" style="margin-top:8px;">
+                        <button id="saveLlmConfig" class="primary">Save AI Settings</button>
+                    </div>
+                    <div id="llmConfigStatus" style="font-size:12px;margin-top:6px;"></div>
+                    <div id="ocrCapabilityStatus" style="font-size:12px;margin-top:6px;opacity:0.9;"></div>
+                </div>
+
+            </div>
     <dialog id="debugLogDlg">
         <div class="modal">
             <header>
@@ -518,6 +557,7 @@
     <script src="/static/memo-operation-queue.js"></script>
     <script src="/static/memo-sync.js"></script>
     <script src="/static/memo-core.js"></script>
+    <script src="/static/memo-ocr.js"></script>
     <script>
         (function () {
             var variantScript = 'memo-variant-finance.js';
