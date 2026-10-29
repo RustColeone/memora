@@ -4,12 +4,14 @@
 #   Memora-<v>-win-x64.zip           the app for Windows, with the built-in server
 #   Memora-<v>-mac-arm64.zip         the app for macOS (Apple silicon), with the built-in server
 #   Memora-<v>-linux-x86_64.AppImage the app for Linux (also as .tar.gz), with the built-in server
-# Run it by hand (Actions → Release → Run workflow) to build without publishing.
+# Run it by hand (Actions → Release → Run workflow), or push a ci/* branch, to build without publishing.
 name: Release
 
 on:
   push:
     tags: ['v*']
+    # A ci/* branch builds everything without publishing a release.
+    branches: ['ci/**']
   workflow_dispatch:
 
 permissions:
@@ -20,7 +22,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-14, ubuntu-22.04]
+        # windows-2022: node-gyp does not know Visual Studio 2026 (windows-latest) yet.
+        os: [windows-2022, macos-14, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -40,16 +43,15 @@ jobs:
           echo "tag $GITHUB_REF_NAME, app $v, desktop $d"
           test "v$v" = "$GITHUB_REF_NAME" && test "$v" = "$d"
       - name: Build the web app (src/ → www/)
-        run: npm ci && npm run build
+        run: bash build_tools/ci-step.sh "Web build" bash -c "npm ci && npm run build"
       - name: Package the sync server
         run: |
-          pip install -r requirements.txt pyinstaller pillow pypdf openai anthropic google-generativeai
-          npm run build:server
+          bash build_tools/ci-step.sh "Server dependencies" pip install -r requirements.txt pyinstaller pillow pypdf openai anthropic google-generativeai
+          bash build_tools/ci-step.sh "Server package" npm run build:server
       - name: Smoke-test the packaged server
-        run: node build_tools/smoke-server.cjs
+        run: bash build_tools/ci-step.sh "Server smoke test" node build_tools/smoke-server.cjs
       - name: Package the desktop app
-        working-directory: desktop
-        run: npm ci && npm run dist
+        run: bash build_tools/ci-step.sh "Desktop package" bash -c "cd desktop && npm ci && npm run dist"
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.os }}

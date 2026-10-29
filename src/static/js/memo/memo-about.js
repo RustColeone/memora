@@ -80,6 +80,10 @@
   function open() {
     var d = dlg(); if (!d) return;
     if (global.MemoShell && global.MemoShell.closeMenu) global.MemoShell.closeMenu();
+    // The Android app (sold on Play) ships without the non-commercial AI-Chan
+    // pictures (see android/app/build.gradle); the thanks stays as text.
+    if (global.Capacitor && global.Capacitor.getPlatform && global.Capacitor.getPlatform() === 'android')
+      d.querySelectorAll('.credits-gallery, .artwork-credit').forEach(function (el) { el.remove(); });
     // Own attribute, not data-src, so the feed's lazy loader (memo-lazyimg.js) ignores them.
     d.querySelectorAll('img[data-credit-src]').forEach(function (img) { img.src = img.getAttribute('data-credit-src'); img.removeAttribute('data-credit-src'); });
     global.MemoI18n.apply(d);

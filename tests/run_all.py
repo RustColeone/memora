@@ -25,6 +25,7 @@ BACKEND_SUITES = [
     "test_backend_api.py",    # HTTP endpoints (memo CRUD, operations, db export/import, agent)
     "test_planner.py",        # planner sync variant: doc store, routing, ops round-trip, isolation
     "test_agent_api.py",      # Agent API: per-agent tokens, scopes, proposals as cards, revocation
+    "test_mods_api.py",       # mods: the list behind the password, files served safely
 ]
 
 

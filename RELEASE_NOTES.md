@@ -18,8 +18,11 @@ The desktop builds are not signed. Windows SmartScreen may say "Windows protecte
 More info → Run anyway. On a Mac, if macOS says the app is damaged or can't be opened, run
 `xattr -dr com.apple.quarantine /Applications/Memora.app` once.
 
+How Memora is built, as diagrams you can tap through on a phone: https://rustcoleone.github.io/memora/architecture/
+
 ## In this version
 
 - Planner: a repeating event uses a single reminder that moves on to the next time after each alert.
 - Purchases saved without a date show the local day, not the next day in the evening.
+- Mods: drop a folder into the mods folder and turn it on in Settings → Mods (see `docs/MODS.md`).
 - About links to this source code (AGPL-3.0).

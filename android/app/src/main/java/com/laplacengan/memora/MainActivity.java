@@ -40,6 +40,7 @@ public class MainActivity extends BridgeActivity {
 		registerPlugin(TranslatePlugin.class);
 		registerPlugin(VaultKeyPlugin.class);
 		registerPlugin(QrScannerPlugin.class);
+		registerPlugin(ModsPlugin.class);
 		// Draw edge to edge on every Android version, not only where Android 15+
 		// enforces it, so no deprecated status/navigation bar colour API is used:
 		// the bars are transparent over the theme background, and the page pads

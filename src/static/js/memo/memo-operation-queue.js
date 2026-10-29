@@ -251,6 +251,9 @@ const OperationQueue = {
     this._applyOpToEntries(entries, op);
     this.persist(ctx, entries);
     this.render(ctx, 'local');
+    // Mods listen for this (memo-mods.js, memora.on('saved')).
+    const page = { default: 'notes', finance: 'spending', planner: 'plans' }[options.variant || queueGetVariant()];
+    if (page) window.dispatchEvent(new CustomEvent('memo:entries-changed', { detail: { type, id: entryId, page } }));
     // Reviewed imports checkpoint the completed batch once. Their caller starts
     // synchronization only after that durable checkpoint succeeds.
     if (options.deferCheckpoint) return op.clientOpId;

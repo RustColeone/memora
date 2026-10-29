@@ -1,6 +1,6 @@
 {
   "name": "memora",
-  "version": "0.0.17",
+  "version": "0.0.18",
   "description": "Memora – self-hosted memo/finance/planner personal database app (Flask server + Capacitor client)",
   "private": true,
   "license": "AGPL-3.0-or-later",
@@ -20,7 +20,8 @@
     "cap:open:android": "cap open android",
     "cap:add:android": "cap add android",
     "cap:doctor": "cap doctor",
-    "build:server": "node build_tools/build-server.cjs"
+    "build:server": "node build_tools/build-server.cjs",
+    "docs:architecture": "node build_tools/architecture.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.131.0",
@@ -37,6 +38,7 @@
   "devDependencies": {
     "@capacitor/cli": "^8.1.0",
     "@playwright/test": "^1.61.0",
+    "acorn": "8.19.0",
     "esbuild": "^0.28.1",
     "fs-extra": "^11.2.0",
     "sharp": "^0.35.3"

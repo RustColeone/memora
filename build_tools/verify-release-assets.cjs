@@ -58,7 +58,12 @@ function walk(dir, prefix = '') {
   const www = path.join(root, 'www');
   const synced = path.join(root, 'android/app/src/main/assets/public');
   const prefix = 'base/assets/public/';
-  for (const name of walk(www)) assert.ok(zip.file(prefix + name), 'Missing bundled web asset: ' + name);
+  // The non-commercial credits pictures must stay out of the paid app (build.gradle ignoreAssetsPattern).
+  const nonCommercial = (name) => name.startsWith('static/credits-images/');
+  for (const name of walk(www)) {
+    if (nonCommercial(name)) assert.ok(!zip.file(prefix + name), 'Non-commercial artwork bundled: ' + name);
+    else assert.ok(zip.file(prefix + name), 'Missing bundled web asset: ' + name);
+  }
   let matched = 0;
   for (const [name, entry] of Object.entries(zip.files)) {
     if (!name.startsWith(prefix) || entry.dir) continue;

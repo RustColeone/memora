@@ -1,5 +1,8 @@
 const { test, expect } = require('@playwright/test');
 
+// The baselines are Windows screenshots (*-win32.png); other systems draw fonts differently.
+test.skip(process.platform !== 'win32', 'visual baselines exist for Windows only');
+
 for (const theme of ['dark', 'light']) {
   for (const viewport of [
     { name: 'phone', width: 390, height: 844 },

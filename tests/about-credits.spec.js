@@ -51,6 +51,19 @@ test.describe('About', () => {
     await expect(credits.locator('.artwork-credit a[href*="by-nc-sa/4.0"]')).toHaveCount(1);
   });
 
+  test('the Android app keeps the thanks as text, without the non-commercial pictures', async ({ page }) => {
+    const asked = [];
+    page.on('request', (r) => { if (r.url().includes('credits-images')) asked.push(r.url()); });
+    await page.addInitScript(() => { window.Capacitor = Object.assign(window.Capacitor || {}, { getPlatform: () => 'android' }); });
+    const about = await openAbout(page);
+    const credits = about.locator('.about-credits');
+    await expect(credits).toContainText('Deepseek-Chan, GPT-Chan, and Claude-Chan');
+    await expect(credits.locator('.credits-gallery')).toHaveCount(0);
+    await expect(credits.locator('.artwork-credit')).toHaveCount(0);
+    expect(asked).toEqual([]);
+    await expect(about.locator('#aboutSourceLink')).toHaveAttribute('href', 'https://github.com/RustColeone/memora');
+  });
+
   test.describe('in Chinese', () => {
     test.use({ locale: 'zh-CN' });
     test('the About sheet is localized', async ({ page }) => {

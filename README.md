@@ -182,6 +182,15 @@ The Windows `.bat` helpers in `build_tools/` wrap the npm scripts:
 `sync-app.bat`, `sync-and-open-android.bat`, `add-android-platform.bat`,
 `open-android.bat`, `capacitor-doctor.bat`, `build-release-aab.bat`.
 
+## How it is built, and mods
+
+[The architecture page](https://rustcoleone.github.io/memora/architecture/) draws Memora's code as diagrams you can
+tap through, on a computer or a phone: from the whole app down to one function and its code. It is made from the code
+itself (`npm run docs:architecture` writes `docs/architecture/data.js`; open `docs/architecture/index.html`).
+
+Memora takes **mods**: drop a folder into the mods folder, turn it on in Settings → Mods. See
+[Writing a mod](docs/MODS.md) and the example in [`mods-examples/`](mods-examples/).
+
 ## About this repository
 
 This is the published stable copy of Memora. Development happens in a private repository, and each

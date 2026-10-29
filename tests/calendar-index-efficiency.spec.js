@@ -1,5 +1,9 @@
 const { test, expect } = require('@playwright/test');
 
+// The entries are written in Pacific time and counted by the hour of that day, so the
+// browser must be there too (CI runs in UTC).
+test.use({ timezoneId: 'America/Los_Angeles' });
+
 async function bootWithCountedEntries(page, entries) {
   await page.clock.setFixedTime(new Date('2026-07-18T12:00:00-07:00'));
   await page.goto('/index.html');

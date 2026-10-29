@@ -38,6 +38,11 @@ MEMO_SYNC_PASSWORD=choose-a-long-password python backend/memora_server.py --base
 
 Run it as a service (systemd, a NAS task, `nssm` on Windows) to keep it up.
 
+## Mods
+
+Mods for the pages this server shows go in `<base-dir>/mods` (with Docker: `/data/mods` in the volume). Each browser
+turns them on in Settings → Mods. See `docs/MODS.md`.
+
 ## Reaching it away from home
 
 Plain HTTP is fine on a home network you trust. To reach the server from outside, don't open a port to

@@ -8,6 +8,7 @@ from .backup_routes import create_backup_blueprint
 from .frontend_routes import create_frontend_blueprint
 from .config_routes import create_config_blueprint
 from .agent_routes import create_agent_blueprint
+from .mods_routes import create_mods_blueprint
 
 __all__ = [
     'create_chat_blueprint',
@@ -20,4 +21,5 @@ __all__ = [
     'create_frontend_blueprint',
     'create_config_blueprint',
     'create_agent_blueprint',
+    'create_mods_blueprint',
 ]

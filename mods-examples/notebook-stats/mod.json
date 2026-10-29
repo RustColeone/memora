@@ -1,0 +1,9 @@
+{
+  "id": "notebook-stats",
+  "name": "Notebook stats",
+  "version": "1.0",
+  "memora": 1,
+  "description": "How many notes and words you have, this month's spending, and the to-dos still open.",
+  "scripts": ["main.js"],
+  "styles": ["style.css"]
+}

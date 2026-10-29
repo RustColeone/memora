@@ -15,6 +15,7 @@ from api import (
     create_config_blueprint,
     create_export_blueprint,
     create_frontend_blueprint,
+    create_mods_blueprint,
     create_memo_blueprint,
     create_ocr_blueprint,
     create_operations_blueprint,
@@ -114,6 +115,7 @@ def create_app():
     app.register_blueprint(create_export_blueprint(context))
     app.register_blueprint(create_backup_blueprint(context))
     app.register_blueprint(create_agent_blueprint(context))
+    app.register_blueprint(create_mods_blueprint(context))
     app.register_blueprint(create_frontend_blueprint(context))
 
     app.memora_context = context   # memora_server.py's token commands use it

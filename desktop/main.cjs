@@ -9,6 +9,7 @@
 //   http.request every request to another address (AI providers, sync
 //                servers), so no browser CORS or mixed-content rule applies
 //   reminders.*  Planner reminders as system notifications
+//   mods.*       lists the mods folder (memo-mods.js loads the ones turned on)
 //   server.*     "Host sync for my other devices": starts and stops the
 //                bundled memora-server, the same server as the open-source one
 // AI is bring-your-own-key: nothing here holds or adds a key.
@@ -36,6 +37,7 @@ const DATA = () => path.join(userData(), 'MemoraData');
 const FILES = () => path.join(DATA(), 'files');          // Capacitor's DATA directory
 const DATABASES = () => path.join(DATA(), 'databases');  // where the phone keeps *SQLite.db
 const SECRETS = () => path.join(DATA(), 'secrets');
+const MODS = () => path.join(userData(), 'mods');        // folders a person drops in (memo-mods.js)
 let win = null;
 
 // ── app://memora → www/ ──
@@ -48,8 +50,10 @@ function serveApp() {
     let rel = decodeURIComponent(url.pathname).replace(/^\/+/, '') || 'index.html';
     // The page asks its own origin whether it is a sync server; it is not.
     if (rel === 'api/config') return new Response(JSON.stringify({ server: false, desktop: true }), { headers: { 'content-type': 'application/json' } });
-    const file = path.normalize(path.join(WWW, rel));
-    if (!file.startsWith(WWW) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return new Response('Not found', { status: 404 });
+    // Mods come from the profile's mods folder (memo-mods.js); everything else from www/.
+    const root = rel.startsWith('mods/') ? MODS() : WWW;
+    const file = path.normalize(path.join(root, rel.startsWith('mods/') ? rel.slice(5) : rel));
+    if (!file.startsWith(root + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return new Response('Not found', { status: 404 });
     return new Response(fs.readFileSync(file), { headers: { 'content-type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream', 'cache-control': 'no-cache' } });
   });
 }
@@ -211,6 +215,28 @@ const reminders = {
   }
 };
 
+// ── mods.* : folders a person drops into <profile>/mods (memo-mods.js) ──
+// Only lists them; the page decides which are on, and loads their files from
+// app://memora/mods/<folder>/.
+const mods = {
+  list: () => {
+    fs.mkdirSync(MODS(), { recursive: true });
+    const out = [];
+    for (const entry of fs.readdirSync(MODS(), { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+      const file = path.join(MODS(), entry.name, 'mod.json');
+      let manifest = null, error = '';
+      try {
+        if (fs.statSync(file).size > 65536) throw new Error('mod.json is larger than 64 KB');
+        manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+      } catch (e) { error = e.code === 'ENOENT' ? 'no mod.json in this folder' : 'mod.json: ' + e.message; }
+      out.push({ folder: entry.name, manifest, error });
+    }
+    return { dir: MODS(), mods: out.sort((a, b) => a.folder.localeCompare(b.folder)) };
+  },
+  openFolder: async () => { fs.mkdirSync(MODS(), { recursive: true }); await shell.openPath(MODS()); return {}; },
+};
+
 // ── server.* : the built-in sync server ──
 let serverProc = null, serverInfo = null;
 function serverCommand() {
@@ -347,6 +373,7 @@ handle('sqlite', sqlite);
 handle('fs', files);
 handle('reminders', reminders);
 handle('server', server);
+handle('mods', mods);
 ipcMain.handle('http:request', (_event, options) => httpRequest(options || {}));
 ipcMain.handle('app:info', () => ({ version: app.getVersion(), platform: process.platform, packaged }));
 ipcMain.handle('app:openExternal', (_event, url) => { if (/^https?:\/\//i.test(url)) shell.openExternal(url); return {}; });

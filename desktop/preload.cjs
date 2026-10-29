@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('MemoDesktop', {
   fs: group('fs', ['readFile', 'writeFile', 'mkdir', 'getUri', 'rename']),
   reminders: group('reminders', ['status', 'enable', 'settings', 'consumeOpen', 'replace']),
   server: group('server', ['status', 'start', 'stop', 'newPassword']),
+  mods: group('mods', ['list', 'openFolder']),
   http: { request: options => call('http:request', options) },
   info: () => call('app:info'),
   openExternal: url => call('app:openExternal', url),

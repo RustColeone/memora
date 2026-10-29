@@ -4726,6 +4726,14 @@ html.desktop-mode [data-hide-when-server], html.desktop-mode #localFolderSection
 .desktop-server-switch { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-size: 15px; cursor: pointer; }
 .desktop-server-switch input { width: 20px; height: 20px; accent-color: var(--accent); }
 .desktop-server-error { margin: 6px 0; padding: 8px 10px; border-radius: 10px; background: var(--danger-bg); color: var(--danger-text); border: 1px solid var(--danger-border); font-size: 13px; }
+/* Settings → Mods (memo-mods.js) */
+.mods-section .mod-row { padding: 8px 0; border-top: 1px solid var(--border); }
+.mods-section .mod-row:first-of-type { border-top: 0; }
+.mods-section .mod-switch { display: flex; align-items: center; gap: 10px; font-size: 15px; cursor: pointer; flex-wrap: wrap; }
+.mods-section .mod-switch input { width: 20px; height: 20px; accent-color: var(--accent); }
+.mods-section .mod-error { margin: 6px 0 0; padding: 6px 10px; border-radius: 10px; background: var(--danger-bg); color: var(--danger-text); border: 1px solid var(--danger-border); font-size: 13px; overflow-wrap: anywhere; }
+.mods-section .mods-where code { overflow-wrap: anywhere; font-size: 12px; }
+.mods-section .mods-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .desktop-server-info { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; margin-top: 8px; }
 .desktop-server-qr { width: 150px; height: 150px; border-radius: 10px; background: #fff; padding: 6px; image-rendering: pixelated; }
 .desktop-server-text { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
