@@ -1,0 +1,1085 @@
+/* Inline thumbs used in the finance table */
+.inline-thumbs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.inline-thumbs img,
+.inline-thumbs .thumb.more {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    cursor: zoom-in;
+}
+
+/* PDF thumb (finance) */
+.inline-thumbs .pdf-thumb {
+    width: 56px;
+    height: 56px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--input-bg);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+    text-decoration: none;
+    color: var(--text);
+    letter-spacing: .5px;
+}
+@media (hover: hover) { .inline-thumbs .pdf-thumb:hover { 
+    background: var(--button-bg);
+} }
+
+/* Use table mode only when the feed says so */
+.feed[data-listmode="table"] {
+    display: block;
+    width: 100%;
+}
+
+body.finance-variant main {
+    max-width: 1100px;
+    margin: 14px auto;
+    padding: 0 16px;
+}
+
+.feed[data-listmode="table"] .tablewrap {
+    width: 100%;
+    overflow: auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+}
+
+.feed[data-listmode="table"] .listtable {
+    width: 100%;
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+    /* prevents jumpy columns */
+    font-variant-numeric: tabular-nums;
+}
+
+.listtable thead th {
+    position: sticky;
+    top: 0;
+    background: var(--input-bg);
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    font-weight: 600;
+    padding: 12px 14px;
+    z-index: 1;
+    color: var(--text);
+}
+
+.listtable tbody td {
+    border-top: 1px solid var(--border);
+    padding: 12px 14px;
+    vertical-align: top;
+}
+
+/* Sticky totals bar at the bottom of viewport: appears only when footer isn't visible */
+.totals-sticky {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 8; /* behind FAB which sits higher */
+    pointer-events: none; /* clicks go to page except on the table */
+}
+
+.totals-sticky.hidden { display: none; }
+
+.totals-sticky .inner {
+    background: linear-gradient(180deg, transparent, var(--header-bg));
+    padding: 10px 0 8px;
+    /* match main container width and side padding */
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding-left: 16px;
+    padding-right: 16px;
+}
+
+.totals-sticky .listtable {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+    font-variant-numeric: tabular-nums;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    pointer-events: auto; /* allow interactions if needed */
+}
+
+.totals-sticky td {
+    padding: 10px 14px;
+    font-weight: 600;
+}
+
+.totals-sticky .totals-label {
+    color: var(--muted);
+}
+
+/* Keep sticky totals behind the floating action button */
+.floating .fab { position: relative; z-index: 10; }
+
+/* Table footer totals styling to match table */
+.listtable tfoot td {
+    border-top: 2px solid var(--border);
+    padding: 12px 14px;
+    font-weight: 600;
+    background: var(--input-bg);
+    color: var(--text);
+}
+
+.listtable tfoot .totals-label {
+    text-align: right;
+    color: var(--muted);
+}
+
+/* fluid column sizing — date shows MM-DD only (month/year is in the group
+   header), so it can be narrow, freeing space for Description + Images. */
+.listtable .col-date {
+    width: clamp(48px, 9vw, 72px);
+    white-space: nowrap;
+}
+
+/* Extra context for the phone card; the desktop table keeps its compact date. */
+.listtable .entry-mobile-date,
+.listtable .entry-category { display: none; }
+
+/* Non-image attachments: one truncated line per file, readable in both themes. */
+.filelist-cell { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.filelist-cell .filelink {
+    display: block;
+    max-width: 100%;
+    font-size: 11px;
+    color: var(--accent);
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+@media (hover: hover) { .filelist-cell .filelink:hover { text-decoration: underline; } }
+.filelist-cell .more-files { font-size: 10px; }
+
+.listtable .col-price,
+.listtable .col-tax,
+.listtable .col-adj {
+    width: clamp(50px, 12vw, 130px);
+    text-align: right;
+}
+
+.listtable .col-total {
+    width: clamp(65px, 12vw, 140px);
+    text-align: right;
+}
+
+.listtable .col-desc {
+    width: auto;
+}
+
+/* pleasant row hover */
+@media (hover: hover) { .listtable tbody tr:hover {
+    background: rgba(96, 165, 250, .06);
+} }
+
+/* description cell layout & inline thumbs */
+.desc-cell {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.desc-text {
+    min-width: 100px;
+    max-width: 100%;
+    word-wrap: break-word;
+    font-size: clamp(11.5px, 0.78rem + 0.1vw, 14px);
+}
+
+/* Fluid base sizing (desktop down to ~700px) */
+.listtable td,
+.listtable th {
+    font-size: clamp(11.5px, 0.8rem + 0.12vw, 14px);
+    line-height: 1.3;
+}
+
+
+
+/* Detail modal finance table tweaks on small screens */
+@media (max-width: 720px) {
+    .listtable td,
+    .listtable th { padding: 10px 8px; }
+    .feed-table td,
+    .feed-table th { font-size: 12px; padding: 6px 4px; }
+    .feed-table img.thumb { width: 30px; height: 30px; }
+}
+
+
+/* On small screens, keep table layout; just shrink thumbnails */
+@media (max-width: 900px) {
+    .feed[data-listmode="table"] .tablewrap { border-radius: 14px; }
+    .feed[data-listmode="table"] .inline-thumbs img,
+    .feed[data-listmode="table"] .inline-thumbs .thumb.more { width: 42px; height: 42px; }
+}
+
+/* Progressive column hiding (keep Total visible)
+    Column order: 1 Date, 2 Desc, 3 Images, 4 Subtotal, 5 Tax, 6 Total
+
+    Rules are duplicated as:
+      a) CSS @media  – works in browser
+      b) body.vw-lt-* classes – applied by JS in memo-variant-finance.js
+         to handle Capacitor WebView not re-evaluating @media on rotation */
+
+/* table-layout: fixed is set on .listtable; do NOT override it with auto */
+
+/* slight overall reduction just below tablet widths */
+@media (max-width: 880px) {
+    .listtable td,
+    .listtable th { font-size: 12.5px; }
+    .desc-text { font-size: 12.5px; }
+}
+body.vw-lt-880 .listtable td,
+body.vw-lt-880 .listtable th { font-size: 12.5px; }
+body.vw-lt-880 .desc-text { font-size: 12.5px; }
+
+/* Hide SUBTOTAL first – it carries larger numbers so takes more space.
+   Hide by CLASS (not nth-child) so it stays aligned with the month-group header
+   rows, which use a colspan and would otherwise shift the positional columns. */
+@media (max-width: 600px) {
+    .feed[data-listmode="table"] .listtable .col-price { display: none; }
+    .listtable td, .listtable th { font-size: 12px; padding: 8px 6px; }
+    .desc-text { font-size: 12px; }
+}
+body.vw-lt-600 .feed[data-listmode="table"] .listtable .col-price { display: none; }
+body.vw-lt-600 .listtable td,
+body.vw-lt-600 .listtable th { font-size: 12px; padding: 8px 6px; }
+body.vw-lt-600 .desc-text { font-size: 12px; }
+
+/* Hide TAX second – relaxed threshold since Subtotal already freed space. */
+@media (max-width: 420px) {
+    .feed[data-listmode="table"] .listtable .col-tax { display: none; }
+    .listtable td, .listtable th { font-size: 11px; padding: 6px 4px; }
+    .desc-text { font-size: 11px; }
+}
+body.vw-lt-420 .feed[data-listmode="table"] .listtable .col-tax { display: none; }
+body.vw-lt-420 .listtable td,
+body.vw-lt-420 .listtable th { font-size: 11px; padding: 6px 4px; }
+body.vw-lt-420 .desc-text { font-size: 11px; }
+
+/* Ultra narrow fallback */
+@media (max-width: 360px) {
+    body { font-size: 11px; }
+    .listtable td, .listtable th { font-size: 10.5px; }
+    .desc-text { font-size: 10.5px; }
+}
+body.vw-lt-360 .listtable td,
+body.vw-lt-360 .listtable th { font-size: 10.5px; }
+body.vw-lt-360 .desc-text { font-size: 10.5px; }
+
+/* Extremely narrow: hide Images only as last resort (class-based to stay
+   aligned with the colspan month-group rows). */
+@media (max-width: 340px) {
+    .feed[data-listmode="table"] .listtable .col-images { display: none; }
+    .feed[data-listmode="table"] .listtable .col-desc { min-width: auto; }
+}
+body.vw-lt-340 .feed[data-listmode="table"] .listtable .col-images { display: none; }
+body.vw-lt-340 .feed[data-listmode="table"] .listtable .col-desc { min-width: auto; }
+
+.clamp-scroll {
+    max-height: 4.5em;
+    overflow-y: auto;
+    word-break: break-word;
+    line-height: 1.4;
+    overscroll-behavior: contain;
+}
+
+/* ===== Stage 3: finance table management ===== */
+/* Sortable headers */
+.listtable thead th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+@media (hover: hover) { .listtable thead th.sortable:hover { background: var(--card); } }
+.listtable thead th.sorted { color: var(--accent); }
+.listtable thead th .sort-ind { font-size: 11px; }
+
+/* Collapsible month group rows */
+.listtable tr.month-row { cursor: pointer; user-select: none; }
+.listtable tr.month-row td {
+    background: var(--input-bg);
+    border-top: 1px solid var(--border);
+    font-weight: 600;
+    color: var(--text);
+}
+@media (hover: hover) { .listtable tr.month-row:hover td { background: var(--card); } }
+.listtable tr.month-row .chev { display: inline-block; transition: transform .15s ease; color: var(--muted); }
+.listtable tr.month-row.collapsed .chev { transform: rotate(-90deg); }
+.listtable tr.month-row .col-price,
+.listtable tr.month-row .col-tax,
+.listtable tr.month-row .col-total { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.listtable tr.entry-row.hidden-row { display: none; }
+
+/* Category spending summary panel */
+.cat-summary {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--input-bg);
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+.cat-summary-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    user-select: none;
+    font-weight: 600;
+}
+@media (hover: hover) { .cat-summary-head:hover { background: var(--card); } }
+.cat-summary-head .chev { display: inline-block; transition: transform .15s ease; color: var(--muted); }
+.cat-summary.collapsed .chev { transform: rotate(-90deg); }
+.cat-summary-head .cat-grand { margin-left: auto; color: var(--accent); font-variant-numeric: tabular-nums; }
+.cat-summary-body { padding: 4px 14px 12px; }
+.cat-summary.collapsed .cat-summary-body { display: none; }
+.cat-summary-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 2px 2px 8px;
+    font-size: 12px;
+}
+.cat-summary-bar .spacer { flex: 1; }
+.cat-details-btn {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+@media (hover: hover) { .cat-details-btn:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); } }
+.cat-rows {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 2px 14px;
+}
+.cat-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 8px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--text);
+    text-align: left;
+    font-size: 13px;
+}
+@media (hover: hover) { .cat-row:hover { background: var(--card); } }
+.cat-row .cat-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cat-row .cat-amt { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* Compact tags in the finance table — keep them from crowding the description
+   and image cells. Show a couple, then a "+N" pill (Stage 3 mobile fix). */
+.listtable .tagbar { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.listtable .tagbar .tagpill { font-size: 10.5px; padding: 1px 7px; }
+.listtable .tagpill-more { background: var(--input-bg); color: var(--muted); cursor: default; }
+@media (max-width: 600px) {
+    .listtable .tagbar { gap: 3px; margin-top: 4px; }
+    .listtable .tagbar .tagpill { font-size: 9.5px; padding: 1px 6px; line-height: 1.5; }
+    .listtable .col-images .inline-thumbs img,
+    .listtable .col-images .inline-thumbs .thumb.more { width: 36px; height: 36px; }
+}
+
+/* Centered, breathing-room empty state — the colgroup above already pins
+   column widths, so this row no longer needs to fight for layout space. */
+.empty-row-cell {
+    text-align: center;
+    padding: 28px 14px !important;
+}
+
+/* Sheet switcher as a small folder tab hanging off the bottom-right of the
+   (sticky) header. Flushed right + hanging below means it only covers a sliver
+   of content while scrolling, instead of taking a full header row. */
+/* Finance sheet switcher — shows the active sheet, opens the manage dialog.
+   Lives in the header bar alongside the other controls (it used to hang below
+   the header as an absolutely-positioned folder tab, which covered content while
+   scrolling and had nothing to do with the rest of the chrome). */
+.sheet-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 160px;
+    height: 34px;
+    box-sizing: border-box;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--input-bg);
+    color: var(--text);
+    font-weight: 600;
+    font-size: 12.5px;
+    cursor: pointer;
+    flex: 0 1 auto;
+    min-width: 0;
+}
+@media (hover: hover) { .sheet-btn:hover { border-color: var(--accent); color: var(--accent); } }
+.sheet-btn .sheet-ic { font-size: 13px; line-height: 1; }
+.sheet-btn .sheet-btn-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-btn .sheet-caret { color: var(--muted); font-size: 11px; }
+/* Tight bars: keep the control but let the sheet NAME be what gives way, so the
+   button never pushes Filters/Bin/menu off the edge. */
+@media (max-width: 560px) {
+    .sheet-btn { max-width: 108px; padding: 4px 8px; gap: 4px; }
+}
+@media (max-width: 400px) {
+    .sheet-btn { max-width: none; }
+    .sheet-btn .sheet-btn-name { display: none; }
+}
+
+
+/* Sheet manage dialog — the modal carries its own border/radius, so the
+   shared dialog shell just stays transparent and matches the clip radius. */
+#sheetDlg { background: transparent; border-radius: 16px; }
+#sheetDlg::backdrop { background: rgba(0, 0, 0, .55); }
+.sheet-modal {
+    --modal-max: 420px;
+    --modal-vw: 96vw;
+    background: var(--card, var(--bg));
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, .45);
+    overflow: hidden;
+}
+.sheet-modal header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.sheet-modal header .icon { border: none; background: transparent; font-size: 16px; cursor: pointer; color: var(--muted); }
+.sheet-list { padding: 8px; display: flex; flex-direction: column; gap: 4px; max-height: 50vh; overflow-y: auto; }
+.sheet-row {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; padding: 9px 10px;
+    border: 1px solid transparent; border-radius: 10px;
+    background: transparent; color: var(--text); text-align: left; font-size: 14px;
+}
+button.sheet-switch { cursor: pointer; }
+@media (hover: hover) { button.sheet-switch:hover { background: var(--input-bg); } }
+.sheet-row.active { border-color: var(--accent); background: var(--input-bg); }
+.sheet-row .sheet-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-row .sheet-count { font-variant-numeric: tabular-nums; }
+.sheet-row .sheet-cur { color: var(--accent); }
+.sheet-row .sheet-rename { flex: 1; padding: 6px 8px; }
+.sheet-row .sheet-del {
+    background: var(--danger-bg); border: 1px solid var(--danger-border); color: var(--danger-text);
+    border-radius: 8px; padding: 5px 10px; font-size: 12px; cursor: pointer;
+}
+.sheet-default-tag { font-size: 11px; }
+.sheet-actions { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
+.sheet-actions .spacer { flex: 1; }
+.sheet-actions button { cursor: pointer; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); }
+.sheet-actions button.primary { background: var(--accent); color: var(--primary-dark); border-color: var(--primary-border); }
+
+/* ── Interactive spending breakdown donut ──────────────────────────────── */
+#catChartDlg { background: transparent; border-radius: 16px; }
+#catChartDlg::backdrop { background: rgba(0, 0, 0, .55); }
+.catchart-modal {
+    --modal-max: 620px;
+    --modal-vw: 96vw;
+    background: var(--card, var(--bg));
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, .45);
+    overflow: hidden;
+}
+.catchart-modal header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+}
+.catchart-modal header .icon { border: none; background: transparent; font-size: 16px; cursor: pointer; color: var(--muted); }
+.catchart-body {
+    display: flex;
+    gap: 8px;
+    padding: 14px 16px 18px;
+    flex-wrap: wrap;
+}
+.catchart-legend {
+    flex: 1 1 170px;
+    min-width: 150px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    align-self: center;
+}
+.catlg-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--text);
+    text-align: left;
+    font-size: 13px;
+}
+@media (hover: hover) { .catlg-row:hover { background: var(--input-bg); } }
+.catlg-row.on { border-color: var(--accent); background: var(--input-bg); }
+.catlg-dot { width: 11px; height: 11px; border-radius: 3px; flex: 0 0 auto; }
+.catlg-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.catlg-pct { color: var(--muted); font-variant-numeric: tabular-nums; }
+.catchart-stage {
+    flex: 1 1 260px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+.catchart-svg { width: min(280px, 70vw); height: auto; touch-action: none; }
+.catchart-ring { cursor: grab; transform-origin: 130px 130px; }
+.catchart-ring:active { cursor: grabbing; }
+.catseg { stroke: var(--card, var(--bg)); stroke-width: 2; transition: opacity .15s ease; }
+.catseg.dim { opacity: .4; }
+.catseg.on { opacity: 1; }
+.catchart-pointer { fill: var(--accent); }
+.catchart-amt { fill: var(--text); font-size: 20px; font-weight: 700; }
+.catchart-lbl { fill: var(--muted); font-size: 11px; letter-spacing: .4px; }
+.catchart-hint { font-size: 11px; text-align: center; max-width: 240px; }
+@media (max-width: 520px) {
+    .catchart-body { flex-direction: column-reverse; align-items: center; }
+    .catchart-legend { width: 100%; }
+}
+
+/* ── Mobile transaction cards ───────────────────────────────────────────────
+   The desktop table remains untouched. On a phone each transaction becomes a
+   self-contained card: context and total first, content in the middle, then a
+   labelled subtotal/tax breakdown. No financial column is dropped. */
+@media (max-width: 640px) {
+    .feed[data-listmode="table"] .tablewrap {
+        overflow: visible;
+        background: transparent;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable {
+        display: block;
+        min-width: 0;
+        table-layout: auto;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable colgroup,
+    .feed[data-listmode="table"] .tablewrap > .listtable thead { display: none; }
+    .feed[data-listmode="table"] .tablewrap > .listtable > tbody,
+    .feed[data-listmode="table"] .tablewrap > .listtable > tfoot { display: block; }
+
+    /* Month dividers read as section headings instead of another card. */
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.month-row {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin: 16px 2px 9px;
+        padding: 0 2px 8px;
+        background: transparent;
+        border-top: 0;
+        border-bottom: 1px solid var(--border);
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.month-row:first-child { margin-top: 0; }
+    @media (hover: hover) { .feed[data-listmode="table"] .tablewrap > .listtable tr.month-row:hover { background: transparent; } }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.month-row > td {
+        display: block;
+        padding: 0;
+        border: none;
+        background: none;
+        font-size: 12.5px;
+    }
+    @media (hover: hover) { .feed[data-listmode="table"] .tablewrap > .listtable tr.month-row:hover > td { background: none; } }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.month-row > td.col-date {
+        flex: 1;
+        min-width: 0;
+        letter-spacing: .01em;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.month-row > td.col-price,
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.month-row > td.col-tax { display: none; }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.month-row > td.col-total {
+        white-space: nowrap;
+        color: var(--accent);
+        font-weight: 700;
+    }
+
+    /* Each entry has the visual rhythm of a compact receipt. */
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "date  total"
+            "desc  desc"
+            "tags  tags"
+            "imgs  imgs";
+        align-items: start;
+        column-gap: 14px;
+        row-gap: 0;
+        margin: 0 0 10px;
+        padding: 14px;
+        overflow: hidden;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: 0 5px 16px rgba(0, 0, 0, .12);
+        cursor: pointer;
+    }
+    @media (hover: hover) { .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row:hover {
+        background: var(--card);
+        border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+    } }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row.hidden-row { display: none; }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row > td {
+        max-width: none;
+        padding: 0;
+        overflow: visible;
+        border: 0;
+        white-space: normal;
+        text-overflow: clip;
+    }
+
+    /* Date and category provide context without competing with the amount. */
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row > td.col-date {
+        grid-area: date;
+        display: flex;
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: 6px;
+        min-width: 0;
+        width: auto;
+        color: var(--muted);
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable .entry-date-short { display: none; }
+    .feed[data-listmode="table"] .tablewrap > .listtable .entry-mobile-date {
+        display: inline;
+        flex: 0 0 auto;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: .03em;
+        text-transform: uppercase;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable .entry-category {
+        display: inline-block;
+        flex: 0 1 auto;
+        min-width: 0;
+        max-width: 100%;
+        padding: 3px 8px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--accent) 12%, transparent);
+        color: var(--accent);
+        font-size: 10.5px;
+        font-weight: 600;
+        line-height: 1.35;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row > td.col-total {
+        grid-area: total;
+        display: inline-flex;
+        align-items: baseline;
+        justify-self: end;
+        align-self: center;
+        min-width: 0;
+        width: auto;
+        gap: 4px;
+        padding: 0;
+        border: 0;
+        color: var(--text);
+        font-size: 15px;
+        font-weight: 750;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -.01em;
+        text-align: right;
+        white-space: nowrap;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row > td.col-total::before {
+        content: attr(data-label);
+        color: var(--muted);
+        font-size: 8.5px;
+        font-weight: 600;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+    /* Description and tags live in the same table cell. Promoting their direct
+       children lets tags precede the attachment disclosure on mobile without
+       changing the desktop table markup. */
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row > td.col-desc { display: contents; }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .desc-cell {
+        grid-area: desc;
+        display: block;
+        min-width: 0;
+        margin-top: 10px;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .desc-text {
+        min-width: 0;
+        max-width: none;
+        color: var(--text);
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .desc-collapsible {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: baseline;
+        gap: 4px;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .desc-collapsible .desc-text {
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .desc-collapsible.expanded {
+        display: block;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .desc-collapsible.expanded .desc-text {
+        overflow: visible;
+        white-space: normal;
+        text-overflow: clip;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .desc-toggle {
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: var(--accent);
+        font: inherit;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: inherit;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .desc-collapsible.expanded .desc-toggle {
+        display: block;
+        margin: 3px 0 0 auto;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .is-expanding {
+        overflow: hidden !important;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row > td.col-images {
+        grid-area: imgs;
+        display: block;
+        min-width: 0;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row > td.col-images:empty { display: none; }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .attachment-disclosure {
+        margin-top: 9px;
+        color: var(--muted);
+        font-size: 11.5px;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .attachment-disclosure > summary {
+        width: fit-content;
+        padding: 3px 0;
+        color: var(--muted);
+        font-weight: 600;
+        cursor: pointer;
+        user-select: none;
+    }
+    @media (hover: hover) { .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .attachment-disclosure > summary:hover {
+        color: var(--accent);
+    } }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .attachment-content {
+        padding-top: 5px;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .inline-thumbs {
+        gap: 7px;
+        margin-top: 0;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .inline-thumbs img,
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .inline-thumbs .thumb.more {
+        width: 54px;
+        height: 54px;
+        border-radius: 9px;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .filelist-cell {
+        margin-top: 5px;
+        gap: 4px;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .filelist-cell .filelink {
+        width: fit-content;
+        max-width: 100%;
+        font-size: 11.5px;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .tagbar {
+        grid-area: tags;
+        gap: 5px;
+        margin-top: 8px;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row .tagbar .tagpill {
+        padding: 2px 8px;
+        border: 1px solid var(--border);
+        font-size: 10.5px;
+        line-height: 1.5;
+    }
+
+    /* Subtotal and tax remain available in the desktop table and detail view;
+       the phone card keeps only its primary amount. */
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row > td.col-price,
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row > td.col-tax { display: none; }
+
+    /* Grand totals use the same hierarchy as a transaction card. */
+    .feed[data-listmode="table"] .tablewrap > .listtable > tfoot { margin-top: 14px; }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.totals-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas: "label total";
+        column-gap: 14px;
+        row-gap: 0;
+        padding: 13px 14px;
+        background: var(--input-bg);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.totals-row > td {
+        display: block;
+        padding: 0;
+        border: 0;
+        background: none;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.totals-row > td.col-date,
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.totals-row > td.col-images,
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.totals-row > td.col-price,
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.totals-row > td.col-tax { display: none; }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.totals-row > td.col-desc {
+        grid-area: label;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.totals-row > td.col-total {
+        grid-area: total;
+        text-align: right;
+        font-size: 15px;
+        font-weight: 750;
+        white-space: nowrap;
+    }
+    /* The fixed summary mirrors the focused total-only footer. */
+    .feed[data-listmode="table"] .totals-sticky .listtable tbody { display: block; }
+    .feed[data-listmode="table"] .totals-sticky .listtable tr {
+        display: flex;
+        align-items: center;
+        padding: 10px 12px;
+    }
+    .feed[data-listmode="table"] .totals-sticky .listtable td { padding: 0; }
+    .feed[data-listmode="table"] .totals-sticky .listtable .col-desc { flex: 1; }
+    .feed[data-listmode="table"] .totals-sticky .listtable .col-date,
+    .feed[data-listmode="table"] .totals-sticky .listtable .col-images,
+    .feed[data-listmode="table"] .totals-sticky .listtable .col-price,
+    .feed[data-listmode="table"] .totals-sticky .listtable .col-tax { display: none; }
+    .feed[data-listmode="table"] .totals-sticky .listtable .col-total {
+        display: block;
+        width: auto;
+        font-weight: 750;
+        white-space: nowrap;
+    }
+}
+
+/* Phone rows: the amount is the row's only figure, so it needs no label, and
+   the Totals footer repeats "Spending by category" under the + button. */
+@media (max-width: 640px) {
+    .feed[data-listmode="table"] .tablewrap > .listtable tr.entry-row > td.col-total::before { content: none; }
+    .feed[data-listmode="table"] .tablewrap > .listtable > tfoot { display: none; }
+}
+
+/* No photos or files in view: drop the empty Images column. */
+.feed[data-listmode="table"].no-attachments .listtable .col-images { display: none; }
+
+/* Where the + button sits in the bottom corner (wide windows, phones in
+   landscape), the totals stay clear of it: the page scrolls them above the
+   button, and the button rises while the sticky totals bar shows. */
+@media (min-width: 1101px), (orientation: landscape) and (max-height: 500px) {
+    body.finance-variant .feed[data-listmode="table"] { padding-bottom: 84px; }
+    body.finance-variant.totals-sticky-on .floating { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ── Purchase form (memo-finance-entry.js) ─────────────────────────────────
+   The dialog is shared with notes in the one-page app: the finance blocks are
+   added next to the shared fields and placed with `order`, all scoped to
+   body.finance-variant so the notes form is untouched. */
+body.finance-variant #entryDlg .content { display: flex; flex-direction: column; gap: 14px; }
+body.finance-variant #entryDlg .content > * { order: 50; min-width: 0; }
+body.finance-variant #entryDlg .content > .fx-scan { order: 1; }
+body.finance-variant #entryDlg .content > .fx-banner { order: 2; }
+body.finance-variant #entryDlg .content > .fx-total { order: 3; }
+body.finance-variant #entryDlg .content > .fx-what-lbl { order: 4; margin-bottom: -8px; }
+body.finance-variant #entryDlg .content > .fx-desc-row { order: 5; }
+body.finance-variant #entryDlg .content > .fx-cat { order: 6; }
+body.finance-variant #entryDlg .content > .fx-when { order: 7; }
+body.finance-variant #entryDlg .content > .fx-itemsblock { order: 8; }
+body.finance-variant #entryDlg .content > .fx-taxblock { order: 9; }
+body.finance-variant #entryDlg .content > .fx-tagsfold { order: 10; }
+body.finance-variant #entryDlg .content > .fx-tags-row { order: 11; }
+body.finance-variant #entryDlg .content > .fx-morefold { order: 12; }
+body.finance-variant #entryDlg .content > .fx-photos-lbl { order: 13; margin-bottom: -8px; }
+body.finance-variant #entryDlg .content > .fx-order-row { order: 14; }
+body.finance-variant #entryDlg .content > .fx-photos-row { order: 15; }
+body.finance-variant #entryDlg .content > .fx-details { order: 16; }
+
+/* Replaced or folded away in finance. */
+body.finance-variant #entryDlg .content > .fx-oldcat-row,
+body.finance-variant #entryDlg .fx-desc-row > label,
+body.finance-variant #entryDlg .fx-order-row > label,
+body.finance-variant #entryDlg .fx-photos-row .ocr-scan-row,
+body.finance-variant #entryDlg .fx-photos-row .reorder-hint { display: none !important; }
+body.finance-variant #entryDlg .content:not(.fx-open-tags) > .fx-tags-row,
+body.finance-variant #entryDlg .content:not(.fx-open-more) > .fx-photos-lbl,
+body.finance-variant #entryDlg .content:not(.fx-open-more) > .fx-order-row,
+body.finance-variant #entryDlg .content:not(.fx-open-more) > .fx-photos-row,
+body.finance-variant #entryDlg .content:not(.fx-open-more) > .fx-details,
+body.finance-variant #entryDlg .content:not(.fx-open-items) .fx-items,
+body.finance-variant #entryDlg .content.fx-open-items .fx-itemsfold,
+body.finance-variant #entryDlg .content.fx-has-items > .fx-taxblock,
+body.finance-variant #entryDlg .content:not(.fx-open-tax) #fxTaxSlotSolo { display: none; }
+
+#entryDlg.fx-dialog .fx-lbl { display: block; font-size: 12px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; font-weight: 600; }
+#entryDlg.fx-dialog .fx-hint { font-size: 13px; color: var(--muted); line-height: 1.4; }
+#entryDlg.fx-dialog .fx-hint[hidden] { display: none; }
+#entryDlg.fx-dialog .fx-total,
+#entryDlg.fx-dialog .fx-cat,
+#entryDlg.fx-dialog .fx-when,
+#entryDlg.fx-dialog .fx-details,
+#entryDlg.fx-dialog .fx-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+#entryDlg.fx-dialog .fx-details { gap: 14px; }
+body.finance-variant #entryDlg .fx-desc-row textarea { min-height: 46px; resize: vertical; }
+
+/* The amount */
+#entryDlg.fx-dialog .fx-amount { display: flex; align-items: baseline; gap: 6px; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 14px; background: var(--input-bg); }
+#entryDlg.fx-dialog .fx-amount:focus-within { border-color: var(--accent); }
+#entryDlg.fx-dialog .fx-cur { font-size: 22px; color: var(--muted); }
+#entryDlg.fx-dialog .fx-amount input { flex: 1; min-width: 0; width: auto; border: 0; outline: none; box-shadow: none; background: transparent; padding: 0; color: var(--text); font: inherit; font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; }
+#entryDlg.fx-dialog .fx-src { font-size: 13px; color: var(--muted); white-space: nowrap; }
+
+/* Chips: category, date, payment */
+#entryDlg.fx-dialog .fx-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+#entryDlg.fx-dialog .fx-chip { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--chip); color: var(--text); font: inherit; font-size: 14px; line-height: 1.2; cursor: pointer; }
+#entryDlg.fx-dialog .fx-chip.on { background: color-mix(in srgb, var(--accent) 20%, var(--card)); border-color: var(--accent); font-weight: 600; }
+#entryDlg.fx-dialog .fx-chip.fx-ghost { background: transparent; color: var(--accent); border-style: dashed; border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+#entryDlg.fx-dialog .fx-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#entryDlg.fx-dialog .fx-date-chip { overflow: hidden; }
+/* The real date field covers its chip, so a tap opens the calendar. */
+#entryDlg.fx-dialog .fx-date-input { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
+
+/* Folded sections */
+#entryDlg.fx-dialog .fx-fold { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 50px; padding: 0 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--card); color: var(--text); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+#entryDlg.fx-dialog .fx-fold svg { flex: none; color: var(--muted); }
+#entryDlg.fx-dialog .fx-itemsfold svg { color: var(--accent); }
+#entryDlg.fx-dialog .fx-fold[aria-expanded="true"] { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+#entryDlg.fx-dialog .fx-fold-k { flex: 1; }
+#entryDlg.fx-dialog .fx-fold-v { max-width: 62%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 14px; }
+
+/* Lines */
+#entryDlg.fx-dialog .fx-items { border: 1px solid var(--border); border-radius: 14px; background: var(--card); overflow: hidden; }
+#entryDlg.fx-dialog .fx-items-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+#entryDlg.fx-dialog .fx-items-title { flex: 1; font-weight: 700; font-size: 15px; }
+#entryDlg.fx-dialog .fx-items-hint { font-size: 13px; color: var(--muted); }
+#entryDlg.fx-dialog .fx-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; width: 100%; min-height: 56px; padding: 10px 14px; margin: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+@media (hover: hover) { #entryDlg.fx-dialog .fx-row:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); } }
+#entryDlg.fx-dialog .fx-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+#entryDlg.fx-dialog .fx-row-n { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 15px; font-weight: 600; }
+#entryDlg.fx-dialog .fx-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#entryDlg.fx-dialog .fx-row-t { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+#entryDlg.fx-dialog .fx-row-m { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#entryDlg.fx-dialog .fx-unsure { background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+#entryDlg.fx-dialog .fx-unsure .fx-row-m { color: var(--accent); }
+#entryDlg.fx-dialog .fx-minus { color: var(--accent2); }
+#entryDlg.fx-dialog .fx-kind { flex: none; padding: 2px 7px; border-radius: 6px; background: var(--chip); color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+#entryDlg.fx-dialog .fx-kind-discount { background: color-mix(in srgb, var(--accent2) 18%, transparent); color: var(--accent2); }
+#entryDlg.fx-dialog .fx-in { box-sizing: border-box; width: 100%; min-height: 44px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--input-bg); color: var(--text); font: inherit; font-size: 15px; }
+#entryDlg.fx-dialog .fx-in:focus { border-color: var(--accent); outline: none; }
+#entryDlg.fx-dialog .fx-in[hidden] { display: none; }
+#entryDlg.fx-dialog .fx-num { text-align: right; font-variant-numeric: tabular-nums; }
+#entryDlg.fx-dialog .fx-edit { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 8%, var(--card)); box-shadow: inset 3px 0 0 var(--accent); }
+#entryDlg.fx-dialog .fx-edit .fx-field > label,
+#entryDlg.fx-dialog .fx-edit .fx-l { font-size: 12px; color: var(--muted); }
+#entryDlg.fx-dialog .fx-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+#entryDlg.fx-dialog .fx-grid2 { display: grid; grid-template-columns: minmax(0, 180px); }
+#entryDlg.fx-dialog .fx-out { min-height: 44px; display: flex; align-items: center; justify-content: flex-end; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+#entryDlg.fx-dialog .fx-edit-acts,
+#entryDlg.fx-dialog .fx-warn-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#entryDlg.fx-dialog .fx-sp { flex: 1; }
+#entryDlg.fx-dialog .fx-btn { min-height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--border); background: transparent; color: var(--text); font: inherit; font-size: 15px; cursor: pointer; }
+#entryDlg.fx-dialog .fx-btn.fx-small { min-height: 38px; padding: 0 12px; font-size: 14px; }
+#entryDlg.fx-dialog .fx-btn.fx-primary { background: var(--accent); border-color: var(--accent); color: var(--primary-dark); font-weight: 700; }
+#entryDlg.fx-dialog .fx-btn.fx-danger { border-color: transparent; color: var(--danger); padding: 0 8px; }
+
+/* The ready line */
+#entryDlg.fx-dialog .fx-add { display: flex; flex-direction: column; gap: 8px; padding: 10px 10px 12px; }
+#entryDlg.fx-dialog .fx-seg { display: inline-flex; gap: 4px; align-self: flex-start; padding: 3px; border: 1px solid var(--border); border-radius: 11px; background: var(--input-bg); }
+#entryDlg.fx-dialog .fx-seg button { min-height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+#entryDlg.fx-dialog .fx-seg button.on { background: var(--accent); color: var(--primary-dark); font-weight: 700; }
+#entryDlg.fx-dialog .fx-addline { display: grid; grid-template-columns: minmax(0, 1fr) 56px 84px 44px; gap: 6px; }
+#entryDlg.fx-dialog .fx-add-noqty .fx-addline { grid-template-columns: minmax(0, 1fr) 96px 44px; }
+#entryDlg.fx-dialog .fx-addline .fx-in { padding: 9px 10px; font-size: 14px; }
+#entryDlg.fx-dialog .fx-plus { width: 44px; height: 44px; padding: 0; border: 0; border-radius: 12px; background: var(--accent); color: var(--primary-dark); display: grid; place-items: center; cursor: pointer; }
+#entryDlg.fx-dialog .fx-add-hint { padding: 0 4px; font-size: 12px; color: var(--muted); }
+
+/* Sums, tax, the check */
+#entryDlg.fx-dialog .fx-sums { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); }
+#entryDlg.fx-dialog .fx-sum,
+#entryDlg.fx-dialog .fx-taxrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; color: color-mix(in srgb, var(--text) 78%, var(--muted)); font-variant-numeric: tabular-nums; }
+#entryDlg.fx-dialog .fx-sum[hidden] { display: none; }
+#entryDlg.fx-dialog .fx-sum.fx-big { font-size: 17px; font-weight: 700; color: var(--text); }
+#entryDlg.fx-dialog .fx-taxlbl { flex: 1; }
+#entryDlg.fx-dialog .fx-tax { width: 112px; min-height: 38px; padding: 6px 10px; flex: none; }
+#entryDlg.fx-dialog .fx-taxamt { min-width: 56px; text-align: right; }
+#entryDlg.fx-dialog #fxTaxSlotSolo { padding: 10px 14px 0; }
+#entryDlg.fx-dialog .fx-ok { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--accent2); }
+#entryDlg.fx-dialog .fx-ok[hidden] { display: none; }
+#entryDlg.fx-dialog .fx-warn { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--accent) 10%, var(--card)); }
+#entryDlg.fx-dialog .fx-warn[hidden] { display: none; }
+#entryDlg.fx-dialog .fx-warn p { margin: 0; font-size: 14px; line-height: 1.45; }
+
+/* Scan a receipt, and what a scan filled in */
+#entryDlg.fx-dialog .fx-scan { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 64px; padding: 10px 16px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--accent) 10%, var(--card)); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+#entryDlg.fx-dialog .fx-scan[hidden] { display: none; }
+#entryDlg.fx-dialog .fx-scan svg { flex: none; color: var(--accent); }
+#entryDlg.fx-dialog .fx-scan-text { display: flex; flex-direction: column; gap: 2px; }
+#entryDlg.fx-dialog .fx-scan-title { font-size: 16px; font-weight: 700; }
+#entryDlg.fx-dialog .fx-scan-sub { font-size: 13px; color: var(--muted); }
+#entryDlg.fx-dialog .fx-banner { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--card); }
+#entryDlg.fx-dialog .fx-banner[hidden] { display: none; }
+#entryDlg.fx-dialog .fx-banner-thumb { flex: none; width: 52px; height: 68px; object-fit: cover; border-radius: 6px; background: var(--chip); }
+#entryDlg.fx-dialog .fx-banner-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+#entryDlg.fx-dialog .fx-banner-text p { margin: 0; font-size: 14px; line-height: 1.45; }
+#entryDlg.fx-dialog .fx-banner-sub { font-size: 13px; color: var(--muted); }
+#entryDlg.fx-dialog .fx-banner .fx-btn { align-self: flex-start; }
+#entryDlg.fx-dialog .fx-banner .fx-btn[hidden] { display: none; }
+body.finance-variant #entryDlg .fx-photos-row .dropzone { min-height: 52px; padding: 12px; font-size: 14px; }
+
+/* Wide windows and phones in landscape: the lines get their own column. */
+@media (orientation: landscape) and (max-height: 500px), (min-width: 900px) {
+    body.finance-variant #entryDlg .content { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); grid-template-rows: repeat(24, auto) 1fr; column-gap: 18px; row-gap: 0; align-items: start; }
+    body.finance-variant #entryDlg .content > * { grid-column: 1; margin-bottom: 12px; }
+    body.finance-variant #entryDlg .content > .fx-what-lbl,
+    body.finance-variant #entryDlg .content > .fx-photos-lbl { margin-bottom: 6px; }
+    body.finance-variant #entryDlg .content > .fx-itemsblock { grid-column: 2; grid-row: 1 / -1; position: sticky; top: 0; }
+}
+/* Phones in landscape: Cancel and Save move up into the header row. */
+@media (orientation: landscape) and (max-height: 500px) {
+    body.finance-variant #entryDlg .modal { position: relative; }
+    body.finance-variant #entryDlg .modal > header { min-height: 54px; box-sizing: border-box; padding-right: 330px; display: flex; align-items: center; }
+    body.finance-variant #entryDlg .modal > .actions { position: absolute; top: 0; right: 56px; bottom: auto; left: auto; height: 54px; padding: 0; margin: 0; border: 0; background: transparent; box-shadow: none; display: flex; align-items: center; gap: 8px; z-index: 3; }
+    body.finance-variant #entryDlg .modal > .actions .spacer { display: none; }
+    body.finance-variant #entryDlg .modal > .actions button { min-height: 36px; padding: 0 14px; }
+    body.finance-variant #entryDlg .modal .content { max-height: calc(100dvh - 84px); }
+}

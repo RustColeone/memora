@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+{% set PAGE_TITLE = 'Memo — Personal Database & Notes' %}
+{% set MEMO_VARIANT = 'default' %}
+{% set EXTRA_HEAD_CSS %}
+<link rel="stylesheet" href="/static/css/memo-finance.css" />
+<link rel="stylesheet" href="/static/reader/reader.css" />
+<style>
+    /* Single-page shell: show only the active variant's chrome. The .finance-variant
+       body class is owned by the shell controller and flipped on every tab switch. */
+    body:not(.finance-variant) .finance-only { display: none !important; }
+    body.finance-variant .memo-only { display: none !important; }
+    body:not(.finance-variant) .sheet-btn { display: none !important; }
+    body.finance-variant #mobileAdjustViewBtn { display: none !important; }
+    /* Colourful notebook glyph for the Memo tab: a full-colour image, not a mask. */
+    .brand-glyph { width: 1.15em; height: 1.15em; vertical-align: -0.22em; margin-right: 2px; }
+</style>
+{% endset %}
+{% include 'partials/head.html' %}
+
+<body>
+    <!-- Single-page shell: variant modules register instead of auto-starting; the
+         shell controller starts core once and flips variants in place. -->
+    <script>window.__MEMO_SPA__ = true;</script>
+    <!-- Privacy boot guard: if the landing variant is Level 3, cover the screen
+         BEFORE first paint so locked content never flashes. memo-privacy.js then
+         confirms with the native plugin and prompts. Mirror kept in localStorage. -->
+    <script>
+        (function () {
+            try {
+                var v = (localStorage.getItem('memo_variant') || 'default').toLowerCase();
+                var key = v === 'finance' ? 'finance' : (v === 'planner' ? 'planner' : 'memo');
+                var levels = JSON.parse(localStorage.getItem('memo_privacy_boot_v1') || '{}');
+                if (Number(levels[key]) === 3) {
+                    document.documentElement.classList.add('privacy-boot-pending', 'privacy-boot-locked');
+                }
+            } catch (_e) {}
+        })();
+    </script>
+    <!-- Privacy lock curtain (shown for a locked Level-3 variant). -->
+    <div id="privacyLockScreen" class="privacy-lock-screen" role="dialog" aria-modal="true" aria-labelledby="privacyLockTitle" hidden>
+        <div class="privacy-lock-card">
+            <div class="privacy-lock-mark" aria-hidden="true"><span class="svg-icon svg-icon-key"></span></div>
+            <strong id="privacyLockTitle">Memora is locked</strong>
+            <p>This page is protected. Unlock with your biometrics or device screen lock.</p>
+            <button type="button" class="primary" id="privacyUnlockBtn">Unlock</button>
+        </div>
+    </div>
+    <!-- Memo / Finance view (one shared memo-core instance). Detached from the
+         DOM while the planner view is active so their IDs never collide. -->
+    <div id="view-main">
+    <header>
+        <div class="bar">
+            <div class="brand-dropdown">
+                <button class="brand" id="brandMenuButton" type="button" aria-haspopup="menu" aria-expanded="false"><span class="svg-icon svg-icon-book"></span> Memo <span class="svg-icon svg-icon-chevron-down"></span> </button>
+                {% include 'partials/brand-menu.html' %}
+            </div>
+            <div class="spacer"></div>
+            <select id="categoryFilter" hidden aria-hidden="true">
+                <option value="__ALL__">All categories</option>
+            </select>
+            <input id="searchBox" placeholder="Search description / tags…" data-i18n-ph="searchPlaceholder" type="text" />
+            <!-- Finance sheet switcher — lives in the bar (shown only in the finance variant) -->
+            <button class="sheet-btn" id="sheetBtn" title="Finance sheets" aria-label="Finance sheets">
+                <span class="sheet-ic"><span class="svg-icon svg-icon-table"></span> </span>
+                <span class="sheet-btn-name" id="sheetBtnName">General</span>
+                <span class="sheet-caret"><span class="svg-icon svg-icon-chevron-down"></span> </span>
+            </button>
+            <button id="safeBtn" class="hdr-btn" title="Open Safe" aria-pressed="false" hidden><span class="hdr-ic"><span class="svg-icon svg-icon-lock"></span></span><span class="btn-label">Safe</span></button>
+            <button id="filtersBtn" class="hdr-btn" title="More filters"><span class="hdr-ic"><span class="svg-icon svg-icon-filter"></span></span><span class="btn-label" data-i18n="filters">Filters</span></button>
+            <button id="recycleBinBtn" class="hdr-btn" title="Recycle Bin"><span class="hdr-ic"><span class="svg-icon svg-icon-trash"></span> </span><span class="btn-label" data-i18n="bin">Bin</span></button>
+            <button id="searchToggleBtn" class="hdr-btn" type="button" title="Search" aria-label="Search" data-i18n-title="Search" data-i18n-aria="Search" aria-controls="searchBox" aria-expanded="false"><span class="hdr-ic"><span class="svg-icon svg-icon-search"></span><span class="svg-icon svg-icon-x"></span></span></button>
+            <button id="chatBtn" class="hdr-btn" title="Ask questions"><span class="hdr-ic"><span class="svg-icon svg-icon-chat"></span> </span><span class="btn-label" data-i18n="chat">Chat</span></button>
+            <div id="syncStatus" class="sync-status" title="Last synced: Never" style="display: none;">
+                <span id="syncIcon"><span class="svg-icon svg-icon-cloud"></span></span>
+                <span id="syncText">Not synced</span>
+            </div>
+            <button id="hamburgerBtn" title="Menu"><span class="svg-icon svg-icon-menu"></span> </button>
+        </div>
+        <!-- Memo folder breadcrumb (memo-core toggles `hidden`) -->
+        <nav id="breadcrumb" class="breadcrumb" aria-label="Folder navigation" hidden>
+            <button class="bc-back" type="button">‹ Home</button>
+            <span class="bc-sep">›</span>
+            <span class="bc-name"></span>
+        </nav>
+        <!-- Recycle Bin view banner (memo variant shows the bin in the feed) -->
+        <nav id="trashBanner" class="trash-banner" aria-label="Recycle bin" hidden>
+            <span class="trash-title"><span class="svg-icon svg-icon-trash"></span> Recycle Bin</span>
+            <span class="trash-count muted"></span>
+            <span class="spacer"></span>
+            <button class="ghost trash-empty" type="button">Empty all</button>
+            <button class="ghost trash-exit" type="button">‹ Exit</button>
+        </nav>
+    </header>
+
+    {% set VARIANT_LABEL = 'Memo' %}
+    {% set MOBILE_MENU_EXTRA %}
+        <button id="mobileAdjustViewBtn" title="Adjust View"><span class="svg-icon svg-icon-table"></span> <span data-i18n="adjustView">Adjust View</span></button>
+    {% endset %}
+    {% include 'partials/mobile-menu.html' %}
+
+    <!-- Adjust View dialog (memo variant) -->
+    <dialog id="viewSettingsDlg">
+        <div class="modal view-settings">
+            <header>
+                <strong data-i18n="adjustView">Adjust View</strong>
+            </header>
+            <div class="content">
+                <div class="view-setting-row">
+                    <span class="view-setting-label" id="cardSizeLabel" data-i18n="cardSize">Card size</span>
+                    <div class="sp-cols-btns" id="cardSizeCtrl" role="radiogroup" aria-labelledby="cardSizeLabel">
+                        <button type="button" class="sp-cols-btn" data-size="s">S</button>
+                        <button type="button" class="sp-cols-btn" data-size="m">M</button>
+                        <button type="button" class="sp-cols-btn" data-size="l">L</button>
+                        <button type="button" class="sp-cols-btn" data-size="xl">XL</button>
+                    </div>
+                </div>
+                <div class="view-setting-row">
+                    <span class="view-setting-label" id="timeSplitLabel" data-i18n="groupByTime">Group by time</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="timeSplitToggle" aria-labelledby="timeSplitLabel">
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <div class="view-setting-row" id="timeSplitPeriodRow">
+                    <span class="view-setting-label view-setting-sub" id="timeSplitPeriodLabel" data-i18n="period">Period</span>
+                    <div class="sp-cols-btns" id="timeSplitPeriods" role="radiogroup" aria-labelledby="timeSplitPeriodLabel">
+                        <button type="button" class="sp-cols-btn" data-period="day" data-i18n="day">Day</button>
+                        <button type="button" class="sp-cols-btn" data-period="week" data-i18n="week">Week</button>
+                        <button type="button" class="sp-cols-btn" data-period="month" data-i18n="month">Month</button>
+                        <button type="button" class="sp-cols-btn" data-period="year" data-i18n="year">Year</button>
+                    </div>
+                </div>
+                <div class="view-setting-row">
+                    <span class="view-setting-label" data-i18n="dateFormat">Date format</span>
+                    <select class="view-setting-select" id="dateFmtSelect">
+                        <option value="auto" data-i18n="dateFmtAuto">Auto (locale)</option>
+                        <option value="mdy">MM/DD/YYYY</option>
+                        <option value="dmy">DD/MM/YYYY</option>
+                        <option value="ymd">YYYY/MM/DD</option>
+                        <option value="rel" data-i18n="dateFmtRelative">Relative</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </dialog>
+
+    <main>
+        <section class="toolbar">
+            <div class="hint" id="fsHint" data-hide-when-server>Optional file saving is <span id="fsStatus">disabled</span>. <span
+                    class="muted">Without
+                    it, everything stays in your browser.</span></div>
+        </section>
+        <section class="feed" id="feed"></section>
+    </main>
+    <!-- Hold-for-camera capture (long-press the add-card or FAB) -->
+    <input id="cameraInput" type="file" accept="image/*" capture="environment" hidden />
+    <div class="floating">
+        <button class="fab" id="fab" title="New entry (hold for camera)">+</button>
+        <svg class="fab-ring" id="fabRing" viewBox="0 0 56 56" aria-hidden="true">
+            <circle class="fab-ring-fill" cx="28" cy="28" r="26" pathLength="100"></circle>
+        </svg>
+    </div>
+    <!-- Multi-select toolbar (memo) -->
+    <div id="selectBar" class="select-bar" role="toolbar" aria-label="Selection actions" aria-hidden="true" inert>
+        <button id="selectExit" class="sb-btn" type="button" title="Exit selection"><span class="svg-icon svg-icon-x"></span></button>
+        <span id="selectCount" class="sb-count">0 selected</span>
+        <span class="spacer"></span>
+        <button id="selectInvert" class="sb-btn" type="button" title="Invert selection"><span class="svg-icon svg-icon-refresh"></span><span class="sb-label">Invert</span></button>
+        <button id="selectNone" class="sb-btn" type="button" title="Clear selection"><span class="svg-icon svg-icon-list-check"></span><span class="sb-label">None</span></button>
+        <button id="selectEdit" class="sb-btn" type="button" title="Batch edit" disabled><span class="svg-icon svg-icon-edit"></span><span class="sb-label">Edit</span></button>
+        <button id="selectDelete" class="sb-btn danger" type="button" title="Delete selected" disabled><span class="svg-icon svg-icon-trash"></span><span class="sb-label">Delete</span></button>
+    </div>
+    <!-- Chat Dialog -->
+    <!-- Create/Edit Modal — union of memo + finance fields (finance-only rows are
+         hidden by the .finance-variant body class in the memo variant). -->
+    <dialog id="entryDlg">
+        <div class="modal">
+            <header><strong id="dlgTitle">New Entry</strong></header>
+            <div class="content">
+                <div class="row">
+                    <label for="desc" data-i18n="description">Description</label>
+                    <textarea id="desc" placeholder="What is this about?"></textarea>
+                </div>
+                <div class="rowgrid">
+                    <div class="row">
+                        <label for="categoryInput" data-i18n="category">Category</label>
+                        <div class="inline">
+                            <select id="categoryInput"></select>
+                            <button type="button" id="catPickerBtn" class="ghost"><span class="svg-icon svg-icon-folder"></span> Move to folder</button>
+                            <input id="newCategory" placeholder="or type new…" type="text" />
+                            <button id="addCategoryBtn">Add</button>
+                        </div>
+                        <div class="muted">Tip: Type a new category and press Enter to add.</div>
+                    </div>
+                </div>
+                <!-- ── Finance-only fields ── -->
+                <div class="rowgrid finance-only">
+                    <div class="row">
+                        <label for="entryDate">Purchase Date</label>
+                        <input id="entryDate" type="date" />
+                    </div>
+                    <div class="row">
+                        <label for="entrySheet">Sheet</label>
+                        <select id="entrySheet"></select>
+                    </div>
+                </div>
+                <div class="rowgrid finance-only">
+                    <div class="row">
+                        <label for="tax">Tax</label>
+                        <input id="tax" type="text" placeholder="e.g. 10%" />
+                    </div>
+                </div>
+                <!-- ── Shared: tags + images ── -->
+                <div class="row">
+                    <label data-i18n="tags">Tags</label>
+                    <div class="tag-inputline">
+                        <div class="suggest">
+                            <input autocomplete="off" id="tagInput" placeholder="Type to search tags; Enter/click to add"
+                                type="text" />
+                            <div class="dropdown hidden" id="tagDropdown"></div>
+                        </div>
+                        <button type="button" id="tagPickerBtn" class="ghost tag-pick-btn" title="Pick tags"><span class="svg-icon svg-icon-hash"></span> Pick</button>
+                    </div>
+                    <div class="chips" id="tagChips"></div>
+                </div>
+                <div class="row">
+                    <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-controls="images" aria-label="Add images or PDF files"><span class="for-pointer">Paste, drop, or click to add images / PDFs</span><span class="for-touch">Tap to add images or PDFs</span></div>
+                    <input accept="image/*,application/pdf,.pdf" id="images" multiple type="file" capture="environment" hidden/>
+                    <div class="muted"><span class="reorder-hint">Drag thumbnails below to reorder. </span><label for="batchImportInput" class="inline-file-action">Review images as separate entries</label></div>
+                    <!-- On-device OCR (ML Kit) — extract text from the entry's images into the description -->
+                    <div class="ocr-scan-row" id="ocrScanRow" hidden>
+                        <button type="button" class="ghost" id="scanTextBtn"><span class="svg-icon svg-icon-copy"></span> Scan text</button>
+                        <select id="ocrLangSelect" class="ocr-lang" aria-label="OCR language">
+                            <option value="auto">Auto</option>
+                            <option value="latin">Latin</option>
+                            <option value="chinese">中文</option>
+                            <option value="japanese">日本語</option>
+                        </select>
+                        <span class="muted ocr-scan-note" id="ocrScanNote"></span>
+                    </div>
+                </div>
+                <div class="row images-order-row">
+                    <label>Images order</label>
+                    <div class="draggrid" id="dragGrid"></div>
+                </div>
+            </div>
+            <div class="actions">
+                <span class="spacer"></span>
+                <button class="ghost" id="cancelBtn" title="Cancel"><span class="svg-icon svg-icon-x"></span> <span data-i18n="cancel">Cancel</span></button>
+                <button class="primary" id="saveBtn" title="Post entry"><span class="svg-icon svg-icon-check"></span> <span data-i18n="post">Post</span></button>
+            </div>
+        </div>
+    </dialog>
+    <input accept="image/*" id="batchImportInput" multiple type="file" hidden />
+    <!-- Batch-edit Modal (memo multi-select) -->
+    <dialog id="batchEditDlg">
+        <div class="modal">
+            <header><strong>Edit <span id="batchEditCount">0 selected</span></strong></header>
+            <div class="content">
+                <div class="row">
+                    <label for="batchCategory">Move to folder</label>
+                    <select id="batchCategory"><option value="">— keep current —</option></select>
+                </div>
+                <div class="row">
+                    <label for="batchAddTag">Add tag to all</label>
+                    <input id="batchAddTag" type="text" placeholder="tag name (optional)" autocomplete="off" />
+                </div>
+                <div class="row">
+                    <label>Remove shared tags</label>
+                    <div class="chips" id="batchCommonTags"></div>
+                    <div class="muted" style="font-size:12px">Tap a tag to mark it for removal from every selected entry.</div>
+                </div>
+            </div>
+            <div class="actions">
+                <span class="spacer"></span>
+                <button class="ghost" id="batchEditCancel" type="button"><span class="svg-icon svg-icon-x"></span> Cancel</button>
+                <button class="primary" id="batchEditApply" type="button"><span class="svg-icon svg-icon-check"></span> Apply</button>
+            </div>
+        </div>
+    </dialog>
+    <!-- Detail Modal + shared dialogs (filters, calendar, recycle bin, lightbox, tag manager) -->
+    {% include 'partials/dialogs-shared.html' %}
+    </div><!-- /#view-main -->
+    {% include 'partials/dialogs-media-tools.html' %}
+
+    <!-- Planner view: lazily cloned from #plannerTpl on first switch, then kept
+         mounted here (this container is detached while memo/finance is active so
+         the planner's chrome IDs never collide with the memo/finance header). -->
+    <div id="view-planner" hidden></div>
+    <template id="plannerTpl">{% include 'partials/planner-view.html' %}</template>
+
+    <script>
+        (function () {
+            var APP_SCRIPT_PATTERN = /\/static\/memo[^\s]*\.js/i;
+
+            function showBootError(message) {
+                var id = 'memoBootErrorBanner';
+                var existing = document.getElementById(id);
+                if (existing) { existing.textContent = message; return; }
+                var banner = document.createElement('div');
+                banner.id = id;
+                banner.style.position = 'fixed';
+                banner.style.left = '12px';
+                banner.style.right = '12px';
+                banner.style.bottom = '12px';
+                banner.style.zIndex = '99999';
+                banner.style.background = '#7f1d1d';
+                banner.style.color = '#fee2e2';
+                banner.style.border = '1px solid #ef4444';
+                banner.style.borderRadius = '8px';
+                banner.style.padding = '10px 12px';
+                banner.style.fontSize = '12px';
+                banner.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+                banner.style.whiteSpace = 'pre-wrap';
+                banner.textContent = message;
+                document.body.appendChild(banner);
+            }
+
+            function isRelevantFilename(filename) {
+                if (!filename) return false;
+                if (filename.indexOf('chrome-extension://') === 0) return false;
+                if (filename.indexOf('lockdown-install.js') !== -1) return false;
+                if (filename.indexOf('cdnjs.cloudflare.com') !== -1) return false;
+                return APP_SCRIPT_PATTERN.test(filename);
+            }
+
+            function isRelevantReason(reason) {
+                var text = '';
+                if (reason && reason.stack) text = String(reason.stack);
+                else if (reason && reason.message) text = String(reason.message);
+                else text = String(reason || '');
+                if (!text) return false;
+                if (/chrome-extension:\/\//i.test(text)) return false;
+                if (/lockdown-install\.js/i.test(text)) return false;
+                if (/cdnjs\.cloudflare\.com/i.test(text)) return false;
+                return /\/static\/memo[^\s]*\.js/i.test(text) || /\bmemo\b/i.test(text);
+            }
+
+            window.addEventListener('error', function (event) {
+                if (!isRelevantFilename(event.filename || '')) return;
+                var msg = '[Memo boot error] ' + (event.message || 'Script error');
+                if (event.filename) msg += '\n' + event.filename + (event.lineno ? ':' + event.lineno : '');
+                showBootError(msg);
+            });
+
+            window.addEventListener('unhandledrejection', function (event) {
+                if (!isRelevantReason(event.reason)) return;
+                var reason = event.reason;
+                var text = (reason && reason.message) ? reason.message : String(reason || 'Unknown promise rejection');
+                showBootError('[Memo boot rejection] ' + text);
+            });
+        })();
+    </script>
+
+    {% include 'partials/scripts-core.html' %}
+    <script src="/static/js/memo/memo-capture.js"></script>
+    <script src="/static/js/memo/memo-core.js?v=4"></script>
+    <script src="/static/js/memo/memo-share.js"></script>
+    <script src="/static/js/memo/memo-ocr.js"></script>
+    <!-- Both variant modules load; in shell mode they register into
+         MemoVariantRegistry and do NOT auto-start core. -->
+    <script src="/static/js/memo/memo-variant-default.js"></script>
+    <script src="/static/js/memo/memo-receipt.js"></script>
+    <script src="/static/js/memo/memo-finance-entry.js"></script>
+    <script src="/static/js/memo/memo-variant-finance.js"></script>
+    <script src="/static/js/memo/memo-filter.js?v=2"></script>
+    <script type="module" src="/static/reader/reader.js"></script>
+    <script src="/static/js/memo/memo-reader.js"></script>
+    <script src="/static/js/memo/memo-view.js"></script>
+    <script src="/static/js/memo/memo-select.js"></script>
+    <script defer src="/static/vendor/jszip.min.js"></script>
+    <!-- Shell controller: starts core once, flips memo/finance in place. -->
+    <script src="/static/js/memo/memo-shell-spa.js"></script>
+    <script>
+        (function () {
+            var v = 'default';
+            try { v = (localStorage.getItem('memo_variant') || 'default').toLowerCase(); } catch (_e) {}
+            v = window.MemoRestore?.initialVariant() || v;
+            if (!['finance', 'default', 'planner'].includes(v)) v = 'default';
+            var boot = window.MemoSpaShell ? window.MemoSpaShell.init(v) : Promise.resolve();
+            window.MemoAppReady = Promise.resolve(boot).then(function () {
+                if (window.MemoPrivacy && window.MemoPrivacy.initialize) return window.MemoPrivacy.initialize();
+            }).then(function () { return window.MemoDraft?.restore(); }).then(function () { return window.MemoRestore?.restoreDetail(); }).catch(function (e) { console.error('[Privacy] init failed', e); });
+        })();
+    </script>
+</body>
+
+</html>

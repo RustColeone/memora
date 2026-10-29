@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script src="/static/js/memo/memo-compatibility.js"></script>
+    <script src="/static/js/memo/memo-viewport.js"></script>
+    <title>Planner — Calendar, Todos, Projects &amp; Habits</title>
+    <!-- restore theme before paint (same trick as memoSystem) -->
+    <script>try{var __d=document.documentElement,__s=localStorage,__m=__s.getItem('memoTheme');if(__m==='system'){var __n=__s.getItem('memoSystemDark');__m=__n==='1'?'dark':__n==='0'?'light':matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';}if(__m==='light')__d.setAttribute('data-theme','light');var __k=__s.getItem(__m==='light'?'memoLookLight':'memoLookDark');if(__k&&__k!=='graphite'&&__k!=='daylight')__d.setAttribute('data-look',__k);}catch(e){}</script>
+    <!-- this page is the 'planner' sync variant -->
+    <script>window.MEMO_VARIANT = 'planner';</script>
+    <link rel="stylesheet" href="/static/css/memo.css" />
+    <link rel="stylesheet" href="/static/css/memo-navigation.css" />
+    <link rel="stylesheet" href="/static/css/memo-image-editor.css" />
+    <!-- bootstrap: resolve API base / static base and bring up Capacitor (same as memo/finance) -->
+    <script>
+        (function () {
+            var hasServer = location.protocol === 'http:' || location.protocol === 'https:';
+            var staticBase = hasServer ? '/static/' : '../static/';
+            var script = document.createElement('script');
+            script.src = staticBase + 'js/memo/memo-bootstrap.js';
+            script.onload = function () { window.MemoBootstrap.initHead({}); };
+            document.head.appendChild(script);
+        })();
+    </script>
+</head>
+
+<body class="planner-page">
+    {% include 'partials/planner-view.html' %}
+    {% include 'partials/dialogs-media-tools.html' %}
+    {% include 'partials/dialog-about.html' %}
+
+
+    <!-- sync infrastructure (shared with memo/finance): contracts → runtime → SQLite engine → op-queue -->
+    <script src="/static/js/memo/memo-desktop.js"></script>
+    <script src="/static/js/memo/memo-contracts.js"></script>
+    <script src="/static/js/memo/memo-runtime.js"></script>
+    <script src="/static/js/memo/memo-i18n.js"></script>
+    <script src="/static/js/memo/memo-i18n-tools.js"></script>
+    <script src="/static/js/memo/memo-i18n-app.js"></script>
+    <script src="/static/js/memo/memo-auth.js"></script>
+    <script src="/static/js/memo/memo-transport.js"></script>
+    <script src="/static/js/memo/memo-lifecycle.js"></script>
+    <script src="/static/js/memo/memo-dom.js"></script>
+    <script src="/static/js/memo/memo-restore.js"></script>
+    <script src="/static/vendor/sql-wasm.js"></script>
+    <script src="/static/js/memo/memo-crypto.js"></script>
+    <script src="/static/js/memo/memo-native-store.js"></script>
+    <script src="/static/js/memo/memo-state-db.js"></script>
+    <script src="/static/js/memo/memo-storage-ui.js"></script>
+    <script src="/static/js/memo/memo-motion.js"></script>
+    <script src="/static/js/memo/memo-native-ui.js"></script>
+    <script src="/static/js/memo/memo-transport-security.js"></script>
+    <script src="/static/js/memo/memo-shell.js"></script>
+    <script src="/static/js/memo/memo-backdrop.js"></script>
+    <script src="/static/js/memo/memo-navigation.js"></script>
+    <script src="/static/js/memo/memo-drawer-gestures.js"></script>
+    <script src="/static/js/memo/memo-about.js"></script>
+    <script src="/static/js/memo/memo-image-editor-loader.js"></script>
+    <script src="/static/js/memo/memo-image-draft.js"></script>
+    <script src="/static/js/memo/memo-operation-queue.js"></script>
+    <script src="/static/js/memo/memo-vault.js"></script>
+    <script src="/static/js/memo/memo-vault-ui.js"></script>
+    <script src="/static/js/memo/memo-discover.js"></script>
+    <script src="/static/js/memo/memo-ai-tools.js"></script>
+    <script src="/static/js/memo/memo-chats.js"></script>
+    <script src="/static/js/memo/memo-scan.js"></script>
+    <script src="/static/js/memo/memo-rediscover.js"></script>
+    <script src="/static/js/memo/memo-sync-status.js"></script>
+    <script src="/static/js/memo/memo-offline-files.js"></script>
+    <script src="/static/js/memo/memo-planner-reminders.js"></script>
+    <script src="/static/js/memo/memo-debug.js"></script>
+    <!-- shared Data Backup panel (identical to memo/finance) -->
+    <script defer src="/static/vendor/jszip.min.js"></script>
+    <script src="/static/js/memo/memo-backup.js"></script>
+    <script src="/static/js/memo/memo-backup-ui.js"></script>
+    <script src="/static/js/memo/memo-ctxmenu.js"></script>
+        <!-- Standalone media tools are export-only on Planner; they do not load the
+            Memo entry editor or any of its state. -->
+        <script src="/static/js/memo/memo-crop.js"></script>
+        <script src="/static/js/memo/memo-panel.js"></script>
+        <script src="/static/js/memo/memo-gif-editor.js"></script>
+        <script src="/static/js/memo/memo-advanced-tools.js"></script>
+
+    <script src="/static/js/planner/planner-store.js"></script>
+    <script src="/static/js/planner/planner-ui.js"></script>
+    <script src="/static/js/planner/planner-calendar.js"></script>
+    <script src="/static/js/planner/planner-todos.js"></script>
+    <script src="/static/js/planner/planner-archive.js"></script>
+    <script src="/static/js/planner/planner-projects.js"></script>
+    <script src="/static/js/planner/planner-habits.js"></script>
+    <script src="/static/js/planner/planner-today.js"></script>
+    <script src="/static/js/planner/planner-menu.js"></script>
+    <script src="/static/js/planner/planner-app.js"></script>
+</body>
+
+</html>

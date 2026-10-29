@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android Auto Backup (Android 11 and older). Everything is backed up except the
+  SQLite plugin's key file: it is sealed by this phone's Keystore, cannot be read
+  on another phone, and makes the plugin fail there. A restored phone opens its
+  notes with the recovery password instead (see memo-native-store.js). The
+  unencrypted copy kept from before the switch to the encrypted database stays
+  on this phone only.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="sqlite_encrypted_shared_prefs.xml" />
+    <!-- The unencrypted copy kept when the phone switched to the encrypted
+         database stays on this phone only. -->
+    <exclude domain="file" path="MemoSystem/memosystem.pre-native.sqlite" />
+</full-backup-content>

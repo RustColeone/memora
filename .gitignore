@@ -1,0 +1,52 @@
+# Dependencies and generated files
+node_modules/
+www/
+build/
+dist/
+dist-server/
+android/app/src/r8qa/
+android/capacitor-cordova-android-plugins/
+android/app/release/
+.gradle/
+*.apk
+*.aab
+*.aar
+
+# Live data from a server or test run (never commit)
+data/
+uploads/
+*.db
+*.db-shm
+*.db-wal
+
+# Tests
+test-results/
+playwright-report/
+.playwright/
+local-backups/
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Secrets: signing keys, the sync password for docker compose
+key.properties
+local.properties
+*.jks
+*.keystore
+*.p12
+*.pem
+.env
+.env.*
+google-services.json
+*serviceAccount*.json
+
+# Editors, OS, logs
+.idea/
+.vs/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log

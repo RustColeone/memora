@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+{% set PAGE_TITLE = 'Finance — Purchases & Receipts' %}
+{% set MEMO_VARIANT = 'finance' %}
+{% set EXTRA_HEAD_CSS = '<link rel="stylesheet" href="/static/css/memo-finance.css" /><link rel="stylesheet" href="/static/reader/reader.css" />' %}
+{% include 'partials/head.html' %}
+
+<body>
+    <header>
+        <div class="bar">
+            <div class="brand-dropdown">
+                <button class="brand" id="brandMenuButton" type="button" aria-haspopup="menu" aria-expanded="false"><span class="svg-icon svg-icon-cash"></span> Finance <span class="svg-icon svg-icon-chevron-down"></span> </button>
+                {% include 'partials/brand-menu.html' %}
+            </div>
+            <div class="spacer"></div>
+            <!-- Category navigation is the folder cards + breadcrumb now; this
+                 select is kept hidden purely as the folder-navigation state
+                 holder (its value = current category, set by folder clicks and
+                 the breadcrumb). Not a user-facing control. -->
+            <select id="categoryFilter" hidden aria-hidden="true">
+                <option value="__ALL__">All categories</option>
+            </select>
+            <!-- Finance sheet switcher — lives in the bar -->
+            <button class="sheet-btn" id="sheetBtn" title="Finance sheets" aria-label="Finance sheets">
+                <span class="sheet-ic"><span class="svg-icon svg-icon-table"></span> </span>
+                <span class="sheet-btn-name" id="sheetBtnName">General</span>
+                <span class="sheet-caret"><span class="svg-icon svg-icon-chevron-down"></span> </span>
+            </button>
+            <input id="searchBox" placeholder="Search description / tags…" data-i18n-ph="searchPlaceholder" type="text" />
+            <button id="filtersBtn" class="hdr-btn" title="More filters"><span class="hdr-ic"><span class="svg-icon svg-icon-filter"></span></span><span class="btn-label" data-i18n="filters">Filters</span></button>
+            <button id="calendarBtn" class="hdr-btn" title="Open calendar"><span class="hdr-ic"><span class="svg-icon svg-icon-calendar"></span> </span><span class="btn-label" data-i18n="calendar">Calendar</span></button>
+            <button id="recycleBinBtn" class="hdr-btn" title="Recycle Bin"><span class="hdr-ic"><span class="svg-icon svg-icon-trash"></span> </span><span class="btn-label" data-i18n="bin">Bin</span></button>
+            <button id="searchToggleBtn" class="hdr-btn" type="button" title="Search" aria-label="Search" data-i18n-title="Search" data-i18n-aria="Search" aria-controls="searchBox" aria-expanded="false"><span class="hdr-ic"><span class="svg-icon svg-icon-search"></span><span class="svg-icon svg-icon-x"></span></span></button>
+            <button id="chatBtn" class="hdr-btn" title="Ask questions"><span class="hdr-ic"><span class="svg-icon svg-icon-chat"></span> </span><span class="btn-label" data-i18n="chat">Chat</span></button>
+            <div id="syncStatus" class="sync-status" title="Last synced: Never" style="display: none;">
+                <span id="syncIcon"><span class="svg-icon svg-icon-cloud"></span></span>
+                <span id="syncText">Not synced</span>
+            </div>
+            <button id="themeToggleBtn" title="Toggle theme"><span class="svg-icon svg-icon-moon"></span> </button>
+            <button id="hamburgerBtn" title="Menu"><span class="svg-icon svg-icon-menu"></span> </button>
+        </div>
+    </header>
+    
+    {% set VARIANT_LABEL = 'Finance' %}
+    {% set MOBILE_MENU_EXTRA = '' %}
+    {% include 'partials/mobile-menu.html' %}
+    <!-- Book reader (shared UniversalReader module; dialog built by reader.js) -->
+    <main>
+        <section class="toolbar">
+            <div class="hint" data-hide-when-server>Optional file saving is <span id="fsStatus">disabled</span>. <span
+                    class="muted">Without
+                    it, everything stays in your browser.</span></div>
+        </section>
+        <section class="feed" id="feed" data-listmode="table"></section>
+    </main>
+    <div class="floating">
+        <button class="fab" id="fab" title="New entry">+</button>
+    </div>
+    <!-- Chat Dialog -->
+    <!-- Create/Edit Modal -->
+    <dialog id="entryDlg">
+        <div class="modal">
+            <header><strong id="dlgTitle">New Entry</strong></header>
+            <div class="content">
+                <div class="row">
+                    <label for="desc">Description</label>
+                    <textarea id="desc" placeholder="What did you purchase?"></textarea>
+                </div>
+                <div class="rowgrid">
+                    <div class="row">
+                        <label for="categoryInput">Category</label>
+                        <div class="inline">
+                            <select id="categoryInput"></select>
+                            <button type="button" id="catPickerBtn" class="ghost"><span class="svg-icon svg-icon-folder"></span> Move to folder</button>
+                            <input id="newCategory" placeholder="or type new…" type="text" />
+                            <button id="addCategoryBtn">Add</button>
+                        </div>
+                        <div class="muted">Tip: Type a new category and press Enter to add.</div>
+                    </div>
+                </div>
+                <div class="rowgrid">
+                    <div class="row">
+                        <label for="entryDate">Purchase Date</label>
+                        <input id="entryDate" type="date" />
+                    </div>
+                    <div class="row">
+                        <label for="entrySheet">Sheet</label>
+                        <select id="entrySheet"></select>
+                    </div>
+                </div>
+                <div class="rowgrid">
+                    <div class="row">
+                        <label for="tax">Tax</label>
+                        <input id="tax" type="text" placeholder="e.g. 10%" />
+                    </div>
+                </div>
+                <div class="row">
+                    <label>Tags</label>
+                    <div class="tag-inputline">
+                        <div class="suggest">
+                            <input autocomplete="off" id="tagInput" placeholder="Type to search tags; Enter/click to add"
+                                type="text" />
+                            <div class="dropdown hidden" id="tagDropdown"></div>
+                        </div>
+                        <button type="button" id="tagPickerBtn" class="ghost tag-pick-btn" title="Pick tags"><span class="svg-icon svg-icon-hash"></span> Pick</button>
+                    </div>
+                    <div class="chips" id="tagChips"></div>
+                </div>
+                <div class="row">
+                    <!-- Drop zone users can click / paste into / drop onto -->
+                    <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-controls="images" aria-label="Add images or PDF files"><span class="for-pointer">Paste, drop, or click to add images / PDFs</span><span class="for-touch">Tap to add images or PDFs</span></div>
+                    <input accept="image/*,application/pdf,.pdf" id="images" multiple type="file" capture="environment" hidden/>
+                    <div class="muted"><span class="reorder-hint">Drag thumbnails below to reorder. </span><label for="batchImportInput" class="inline-file-action">Review images as separate entries</label></div>
+                </div>
+                <div class="row images-order-row">
+                    <label>Images order</label>
+                    <div class="draggrid" id="dragGrid"></div>
+                </div>
+            </div>
+            <div class="actions">
+                <span class="spacer"></span>
+                <button class="ghost" id="cancelBtn"><span class="svg-icon svg-icon-x"></span> Cancel</button>
+                <button class="primary" id="saveBtn"><span class="svg-icon svg-icon-save"></span> Save</button>
+            </div>
+        </div>
+    </dialog>
+    <input accept="image/*" id="batchImportInput" multiple type="file" hidden />
+    <!-- Detail Modal -->
+    {% include 'partials/dialogs-shared.html' %}
+    {% include 'partials/dialogs-media-tools.html' %}
+
+    <script>
+        (function () {
+            var APP_SCRIPT_PATTERN = /\/static\/memo[^\s]*\.js/i;
+
+            function showBootError(message) {
+                var id = 'memoBootErrorBanner';
+                var existing = document.getElementById(id);
+                if (existing) {
+                    existing.textContent = message;
+                    return;
+                }
+                var banner = document.createElement('div');
+                banner.id = id;
+                banner.style.position = 'fixed';
+                banner.style.left = '12px';
+                banner.style.right = '12px';
+                banner.style.bottom = '12px';
+                banner.style.zIndex = '99999';
+                banner.style.background = '#7f1d1d';
+                banner.style.color = '#fee2e2';
+                banner.style.border = '1px solid #ef4444';
+                banner.style.borderRadius = '8px';
+                banner.style.padding = '10px 12px';
+                banner.style.fontSize = '12px';
+                banner.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+                banner.style.whiteSpace = 'pre-wrap';
+                banner.textContent = message;
+                document.body.appendChild(banner);
+            }
+
+            function isRelevantFilename(filename) {
+                if (!filename) return false;
+                if (filename.indexOf('chrome-extension://') === 0) return false;
+                if (filename.indexOf('lockdown-install.js') !== -1) return false;
+                if (filename.indexOf('cdnjs.cloudflare.com') !== -1) return false;
+                return APP_SCRIPT_PATTERN.test(filename);
+            }
+
+            function isRelevantReason(reason) {
+                var text = '';
+                if (reason && reason.stack) text = String(reason.stack);
+                else if (reason && reason.message) text = String(reason.message);
+                else text = String(reason || '');
+
+                if (!text) return false;
+                if (/chrome-extension:\/\//i.test(text)) return false;
+                if (/lockdown-install\.js/i.test(text)) return false;
+                if (/cdnjs\.cloudflare\.com/i.test(text)) return false;
+                return /\/static\/memo[^\s]*\.js/i.test(text) || /\bmemo\b/i.test(text);
+            }
+
+            window.addEventListener('error', function (event) {
+                if (!isRelevantFilename(event.filename || '')) return;
+                var msg = '[Memo boot error] ' + (event.message || 'Script error');
+                if (event.filename) msg += '\n' + event.filename + (event.lineno ? ':' + event.lineno : '');
+                showBootError(msg);
+            });
+
+            window.addEventListener('unhandledrejection', function (event) {
+                if (!isRelevantReason(event.reason)) return;
+                var reason = event.reason;
+                var text = (reason && reason.message) ? reason.message : String(reason || 'Unknown promise rejection');
+                showBootError('[Memo boot rejection] ' + text);
+            });
+        })();
+    </script>
+
+    {% include 'partials/scripts-core.html' %}
+    <script src="/static/js/memo/memo-core.js?v=4"></script>
+    <script src="/static/js/memo/memo-share.js"></script>
+    <script src="/static/js/memo/memo-ocr.js"></script>
+    <!-- This page is always the finance variant. Keep variant-before-filter
+         ordering with a normal parser-blocking script. -->
+    <script src="/static/js/memo/memo-receipt.js"></script>
+    <script src="/static/js/memo/memo-finance-entry.js"></script>
+    <script src="/static/js/memo/memo-variant-finance.js"></script>
+    <script src="/static/js/memo/memo-filter.js?v=2"></script>
+    <script type="module" src="/static/reader/reader.js"></script>
+    <script src="/static/js/memo/memo-reader.js"></script>
+    <script defer src="/static/vendor/jszip.min.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,22 @@
+# Memora sync server on a home server or NAS.
+#   1. Put a long password in a file named .env next to this one:
+#        MEMO_SYNC_PASSWORD=your-long-sync-password
+#   2. docker compose up -d
+#   3. Open http://<server-address>:5050 in a browser, or enter that address
+#      as the Server URL in the Memora app.
+# Use HTTPS (Tailscale or a reverse proxy) to reach it from outside your home;
+# see SERVER.md.
+services:
+  memora:
+    build: .
+    image: memora-server
+    restart: unless-stopped
+    ports:
+      - "5050:5050"
+    environment:
+      MEMO_SYNC_PASSWORD: ${MEMO_SYNC_PASSWORD:?Set MEMO_SYNC_PASSWORD in .env}
+    volumes:
+      - memora-data:/data
+
+volumes:
+  memora-data:

@@ -1,0 +1,634 @@
+    <dialog id="detailDlg">
+        <div class="modal">
+            <header>
+                <strong>Entry</strong>
+                <div class="modal-menu-wrap">
+                    <button class="modal-menu" id="detailMenuBtn" type="button" title="More options" aria-label="More options"><span class="svg-icon svg-icon-more"></span></button>
+                    <div class="modal-menu-popup" id="detailMenuPopup"></div>
+                </div>
+            </header>
+            <!-- tabindex + autofocus: opening the detail should NOT land a focus
+                 ring on the "…" menu button (which would be the first focusable).
+                 Focus the content instead — no ring, and Tab still reaches the
+                 controls. -->
+            <div class="content" id="detailContent" tabindex="-1" autofocus></div>
+            <div class="actions">
+                <button class="danger" id="deleteBtn" title="Delete entry" aria-label="Delete entry"><span class="svg-icon svg-icon-trash"></span> Delete</button>
+                <span class="spacer"></span>
+                <button class="ghost" id="detailToolsAction" type="button" hidden><span class="svg-icon svg-icon-sparkles"></span> <span data-i18n="Tools">Tools</span></button>
+                <button id="editBtn" title="Edit entry" aria-label="Edit entry"><span class="svg-icon svg-icon-edit"></span> Edit</button>
+            </div>
+        </div>
+    </dialog>
+    <!-- Category picker — searchable list/card toggle; card view shows folder thumbnails -->
+    <dialog id="catPickerDlg" class="catpick-dlg mobile-sheet">
+        <button type="button" class="sheet-drag-handle" aria-label="Close category picker"></button>
+        <div class="modal">
+            <header>
+                <strong>Category</strong>
+                <span class="spacer"></span>
+                <div class="catpick-viewtoggle" role="group" aria-label="Category layout">
+                    <button type="button" id="catPickViewCard" class="active" title="Card view" aria-label="Card view" aria-pressed="true"><span class="svg-icon svg-icon-image"></span></button>
+                    <button type="button" id="catPickViewList" title="List view" aria-label="List view" aria-pressed="false"><span class="svg-icon svg-icon-list-check"></span></button>
+                </div>
+            </header>
+            <div class="content">
+                <div class="catpick-searchrow">
+                    <input id="catPickSearch" class="catpick-search" type="text" autocomplete="off"
+                        placeholder="Search — or type a new category and press Enter" />
+                    <button type="button" id="catPickAddBtn" class="ghost">Add</button>
+                </div>
+                <div id="catPickList" class="catpick-grid catpick-card"></div>
+            </div>
+        </div>
+    </dialog>
+    <!-- Tag picker — applied tags on top, available below; tap a pill to move it across -->
+    <dialog id="tagPickerDlg" class="tagpick-dlg mobile-sheet">
+        <button type="button" class="sheet-drag-handle" aria-label="Close tag picker"></button>
+        <div class="modal">
+            <header><strong>Tags</strong></header>
+            <div class="content">
+                <input id="tagPickSearch" class="tagpick-search" type="text" autocomplete="off"
+                    placeholder="Search tags — or type a new one and press Enter" />
+                <div class="tagpick-section">
+                    <div class="tagpick-label">Applied</div>
+                    <div id="tagPickApplied" class="tagpick-panel"></div>
+                    <div id="tagPickAppliedEmpty" class="tagpick-empty muted" hidden>No tags yet — tap one below to add it.</div>
+                </div>
+                <div class="tagpick-section">
+                    <div class="tagpick-label">Available</div>
+                    <div id="tagPickAvailable" class="tagpick-panel"></div>
+                    <div id="tagPickAvailEmpty" class="tagpick-empty muted" hidden>No more tags.</div>
+                </div>
+            </div>
+            <div class="actions">
+                <span class="spacer"></span>
+                <button class="primary" id="tagPickClose" type="button" title="Finish selecting tags" aria-label="Finish selecting tags"><span class="svg-icon svg-icon-check"></span> Done</button>
+            </div>
+        </div>
+    </dialog>
+    <!-- Privacy — per-page level (Memo: Open/Safe/Locked · Finance/Planner: Open/Locked) -->
+    <dialog id="privacySettingsDlg" class="mobile-sheet">
+        <button type="button" class="sheet-drag-handle" aria-label="Close privacy settings"></button>
+        <div class="modal">
+            <header><strong>Privacy</strong></header>
+            <div class="content">
+                <p class="muted" id="privacyAvailability"></p>
+                <div class="privacy-rows">
+                    <div class="privacy-row">
+                        <span class="privacy-row-label"><span class="svg-icon svg-icon-folder"></span> Memo</span>
+                        <select id="privacyLevel_memo" aria-label="Memo privacy level">
+                            <option value="1">Open</option>
+                            <option value="2">Safe</option>
+                            <option value="3">Locked</option>
+                        </select>
+                    </div>
+                    <div class="privacy-row">
+                        <span class="privacy-row-label"><span class="svg-icon svg-icon-cash"></span> Finance</span>
+                        <select id="privacyLevel_finance" aria-label="Finance privacy level">
+                            <option value="1">Open</option>
+                            <option value="3">Locked</option>
+                        </select>
+                    </div>
+                    <div class="privacy-row">
+                        <span class="privacy-row-label"><span class="svg-icon svg-icon-calendar"></span> Planner</span>
+                        <select id="privacyLevel_planner" aria-label="Planner privacy level">
+                            <option value="1">Open</option>
+                            <option value="3">Locked</option>
+                        </select>
+                    </div>
+                </div>
+                <label class="privacy-share-blur"><input type="checkbox" id="privacyShareBlur" checked> <span>Before sharing a photo with faces or personal text, offer to blur them first</span></label>
+                <p class="muted privacy-hint"><strong>Open</strong> — no lock. <strong>Safe</strong> (Memo only) — hide chosen entries behind a Safe you unlock. <strong>Locked</strong> — the whole page needs your biometrics or device screen lock to open.</p>
+            </div>
+            <div class="actions">
+                <button class="ghost" id="privacySettingsCancel" type="button">Cancel</button>
+                <span class="spacer"></span>
+                <button class="primary" id="privacySettingsSave" type="button">Save</button>
+            </div>
+        </div>
+    </dialog>
+    {% include 'partials/dialog-about.html' %}
+    <!-- Crop & Share — crop the current reader page, then Save / Copy / Share -->
+    <dialog id="cropDlg">
+        <div class="modal crop-modal">
+            <header>
+                <strong><span class="svg-icon svg-icon-crop"></span> Crop</strong>
+                <small id="cropHint" class="muted" style="font-size:11px;margin-left:8px">Drag to select · Apply to zoom in</small>
+            </header>
+            <div class="content">
+                <div class="crop-canvas-wrap"><canvas id="cropCanvas"></canvas></div>
+                <div id="cropStatus" class="muted" style="font-size:12px;min-height:16px;margin-top:6px"></div>
+            </div>
+            <div class="actions">
+                <button class="ghost" id="cropUndoBtn" type="button" disabled><span class="svg-icon svg-icon-refresh"></span> Undo</button>
+                <span class="spacer"></span>
+                <button class="ghost" id="cropCopyBtn" type="button"><span class="svg-icon svg-icon-copy"></span> Copy</button>
+                <button class="ghost" id="cropSaveBtn" type="button"><span class="svg-icon svg-icon-save"></span> Save</button>
+                <button class="ghost" id="cropShareBtn" type="button"><span class="svg-icon svg-icon-share"></span> Share</button>
+                <button class="primary" id="cropApplyBtn" type="button"><span class="svg-icon svg-icon-crop"></span> Apply</button>
+            </div>
+        </div>
+    </dialog>
+    <!-- Create GIF — animate an entry's images -->
+    <dialog id="gifDlg">
+        <div class="modal panel-modal">
+            <header><strong><span class="svg-icon svg-icon-play"></span> Create GIF</strong></header>
+            <div class="content">
+                <div class="panel-preview"><img id="gifPreview" alt="GIF preview" /></div>
+                <div class="panel-controls">
+                    <label class="panel-ctl"><span>Frame delay <output id="gifDelayOut">500ms</output></span>
+                        <input type="range" id="gifDelay" min="100" max="2000" step="50" />
+                    </label>
+                    <label class="panel-ctl panel-ctl-inline"><input type="checkbox" id="gifLoop" /> <span>Loop forever</span></label>
+                    <label class="panel-ctl panel-ctl-inline"><span>Background</span> <input type="color" id="gifBg" /></label>
+                    <label class="panel-ctl"><span>Max size</span>
+                        <select id="gifSize">
+                            <option value="240">240 px</option>
+                            <option value="360">360 px</option>
+                            <option value="480">480 px</option>
+                            <option value="640">640 px</option>
+                        </select>
+                    </label>
+                </div>
+                <div id="gifStatus" style="font-size:12px;margin-top:8px;color:var(--muted)"></div>
+            </div>
+            <div class="actions compact-actions">
+                <span class="spacer"></span>
+                <button class="secondary" id="gifSaveEntryBtn" type="button" title="Save as a new entry" aria-label="Save as a new entry"><span class="svg-icon svg-icon-save"></span><span class="action-label-full">Save as new entry</span><span class="action-label-compact">Save</span></button>
+                <button class="primary" id="gifDownloadBtn" type="button" title="Download GIF" aria-label="Download GIF"><span class="svg-icon svg-icon-download"></span><span class="action-label-full">Download GIF</span><span class="action-label-compact">Export</span></button>
+            </div>
+        </div>
+    </dialog>
+    <!-- Batch image review — deliberately separate from the normal multi-file
+         entry form, which still creates one entry with multiple attachments. -->
+    <dialog id="batchImportReviewDlg" class="batch-import-dlg">
+        <div class="modal batch-import-modal">
+            <header>
+                <strong><span class="svg-icon svg-icon-image"></span> Review imported images</strong>
+                <span class="muted" id="batchImportCount">0 images</span>
+            </header>
+            <div class="content">
+                <div class="batch-import-toolbar">
+                    <button type="button" class="ghost" id="batchImportSelectAllBtn">Select all</button>
+                    <button type="button" class="ghost" id="batchImportSelectNoneBtn">Select none</button>
+                    <label class="ghost inline-file-action" for="batchImportAddMoreInput">Add images</label>
+                    <input type="file" id="batchImportAddMoreInput" accept="image/*" multiple hidden />
+                    <span class="spacer"></span>
+                    <label class="batch-import-bulk-field">Folder
+                        <select id="batchImportBulkCategory"></select>
+                    </label>
+                    <button type="button" id="batchImportApplyCategoryBtn">Apply folder</button>
+                </div>
+                <div class="batch-import-toolbar batch-import-tags-row">
+                    <label class="batch-import-bulk-field">Tags
+                        <input id="batchImportBulkTags" type="text" placeholder="comma-separated tags" autocomplete="off" />
+                    </label>
+                    <button type="button" id="batchImportAddTagsBtn">Add tags</button>
+                    <button type="button" class="ghost" id="batchImportRemoveTagsBtn">Remove tags</button>
+                </div>
+                <p id="batchImportStatus" class="muted batch-import-status">Each retained image will become its own entry. Nothing is saved until you confirm.</p>
+                <div id="batchImportList" class="batch-import-list"></div>
+            </div>
+            <div class="actions compact-actions">
+                <button type="button" class="ghost" id="batchImportCancelBtn" title="Cancel import"><span class="svg-icon svg-icon-x"></span> Cancel</button>
+                <span class="spacer"></span>
+                <button type="button" class="primary" id="batchImportConfirmBtn" title="Create selected entries" aria-label="Create selected entries"><span class="svg-icon svg-icon-check"></span><span class="action-label-full">Create entries</span><span class="action-label-compact">Create</span></button>
+            </div>
+        </div>
+    </dialog>
+    <!-- Organize quiz — file the least-organized entries one at a time -->
+    <dialog id="quizDlg">
+        <div class="modal quiz-modal">
+            <header>
+                <strong><span class="svg-icon svg-icon-sparkles"></span> Organize</strong>
+                <span class="quiz-progress muted" id="quizProgress">1 of 1</span>
+            </header>
+            <div class="content quiz-body">
+                <div class="quiz-preview">
+                    <img id="quizPreview" alt="entry image" />
+                    <div id="quizPreviewEmpty" class="quiz-empty muted" style="display:none">No image</div>
+                </div>
+                <div class="quiz-desc muted" id="quizDesc"></div>
+                <div class="row">
+                    <label for="quizCategory">Folder</label>
+                    <div class="inline">
+                        <select id="quizCategory"></select>
+                        <input id="quizNewCat" type="text" placeholder="or new folder…" />
+                        <button id="quizAddCatBtn" type="button">Add</button>
+                    </div>
+                </div>
+                <div class="row">
+                    <label for="quizTagInput">Tags</label>
+                    <div class="inline">
+                        <input id="quizTagInput" type="text" placeholder="type a tag, Enter to add" autocomplete="off" />
+                        <button id="quizAddTagBtn" type="button">Add</button>
+                    </div>
+                    <div class="chips" id="quizTagChips" style="margin-top:6px"></div>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="ghost" id="quizBackBtn" type="button"><span class="svg-icon svg-icon-chevron-left"></span> Back</button>
+                <span class="spacer"></span>
+                <button class="ghost" id="quizSkipBtn" type="button">Skip <span class="svg-icon svg-icon-arrow-right-md"></span></button>
+                <button class="primary" id="quizSaveBtn" type="button"><span class="svg-icon svg-icon-check"></span> Save &amp; Next</button>
+            </div>
+        </div>
+    </dialog>
+    <!-- Filters / Tag Manager -->
+    <dialog id="filtersDlg" class="mobile-sheet">
+        <button type="button" class="sheet-drag-handle" aria-label="Close filters"></button>
+        <div class="modal filters">
+            <header><strong>Filters</strong></header>
+            <div class="filter-tabs" role="tablist" aria-label="Filter type">
+                <button class="filter-tab active" id="filterTypeTab" type="button" role="tab" aria-selected="true" aria-controls="filterTabType" data-tab="type" tabindex="0">By Type</button>
+                <button class="filter-tab" id="filterDateTab" type="button" role="tab" aria-selected="false" aria-controls="filterTabDate" data-tab="date" tabindex="-1">By Date</button>
+            </div>
+            <div class="content">
+                <div id="filterTabType" class="filter-tab-panel" role="tabpanel" aria-labelledby="filterTypeTab">
+                <div class="row" id="filterFavoritesRow">
+                    <label class="fav-filter-row"><input type="checkbox" id="filterFavorites"> <span><span class="svg-icon svg-icon-star"></span> Favourites only</span></label>
+                </div>
+                <div class="row">
+                    <label>Folder</label>
+                    <button type="button" id="filterChooseFolderBtn" class="ghost catpick-open-btn"><span class="svg-icon svg-icon-folder"></span> Choose folder…</button>
+                </div>
+                <div class="row">
+                    <label>Tags</label>
+                    <div class="tag-mode-row">
+                        <div class="mode-toggle" id="filterTagMode" role="group" aria-label="Tag match mode">
+                            <button type="button" class="mode-opt active" data-mode="any" aria-pressed="true">Match any</button>
+                            <button type="button" class="mode-opt" data-mode="all" aria-pressed="false">Match all</button>
+                        </div>
+                        <button class="linkbtn" id="manageTagsLink">Manage tags</button>
+                    </div>
+                    <div class="field-hint" id="filterTagModeHint"></div>
+                    <input id="filterTagSearch" placeholder="Search tags…" type="text" />
+                    <div class="tag-panel-label">Applied</div>
+                    <div class="tag-panel tag-applied" id="filterTagApplied"></div>
+                    <div class="tag-panel-label">Available</div>
+                    <div class="tag-panel tag-available" id="filterTagAvailable"></div>
+                </div>
+                <!-- Tag Manager UI -->
+                <div class="hidden" id="tagManager">
+                    <hr style="border-color:#1f2937;opacity:.6" />
+                    <div class="inline" style="justify-content:space-between">
+                        <h3 style="margin:0">Manage tags</h3>
+                        <button class="ghost" id="tagMgrClose">Close</button>
+                    </div>
+                    <div class="tagmgr-wrap">
+                        <div class="tagmgr-list" id="tagMgrList"></div>
+                    </div>
+                    <div class="inline" style="justify-content:flex-end;margin-top:8px">
+                        <button class="ghost" disabled="" id="tagMgrUndo">Undo</button>
+                    </div>
+                </div>
+                </div><!-- /filterTabType -->
+                <!-- By Date: the drag-select calendar, relocated here from its own dialog -->
+                <div id="filterTabDate" class="filter-tab-panel hidden" role="tabpanel" aria-labelledby="filterDateTab" hidden>
+                    <div class="calbar">
+                        <div class="left">
+                            <button id="calPrev" aria-label="Previous period"><span class="svg-icon svg-icon-chevron-left"></span> </button>
+                            <div class="muted" id="calHeading" aria-live="polite"></div>
+                            <button id="calNext" aria-label="Next period"><span class="svg-icon svg-icon-chevron-right"></span> </button>
+                        </div>
+                        <div class="right">
+                            <select id="calView" aria-label="Calendar view">
+                                <option value="year">Year</option>
+                                <option selected="" value="month">Month</option>
+                                <option value="day">Day</option>
+                            </select>
+                            <input id="calPickDay" type="date" aria-label="Choose date" />
+                            <button id="calUp">↑ Back</button>
+                        </div>
+                    </div>
+                    <div class="callegend" id="calLegend"></div>
+                    <div class="calgrid month" id="calGrid"></div>
+                    <div class="calactions">
+                        <button class="ghost" disabled="" id="calDrill">Drill In</button>
+                        <button class="ghost" disabled="" id="calClearSel">Clear Selection</button>
+                        <button class="primary" id="calApply">Apply date</button>
+                    </div>
+                    <input id="dateFrom" type="date" hidden />
+                    <input id="dateTo" type="date" hidden />
+                </div>
+            </div>
+            <div class="actions">
+                <button class="ghost" id="filtersReset"><span class="svg-icon svg-icon-refresh"></span> Reset</button>
+                <span class="spacer"></span>
+                <button id="filtersCancel"><span class="svg-icon svg-icon-x"></span> Cancel</button>
+                <button class="primary" id="filtersApply"><span class="svg-icon svg-icon-check-alt"></span> Apply</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Recycle Bin Dialog -->
+    <dialog id="recycleBinDlg">
+        <div class="modal">
+            <header>
+                <strong>Recycle Bin</strong>
+                <span class="muted" style="margin-left:10px;font-weight:normal">Items auto-delete after 30 days</span>
+            </header>
+            <div class="content" style="max-height:70vh;overflow-y:auto">
+                <div id="recycleBinFeed"></div>
+            </div>
+            <div class="actions">
+                <button id="emptyRecycleBin" class="danger"><span class="svg-icon svg-icon-trash"></span> Empty All</button>
+                <span class="spacer"></span>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Settings Dialog -->
+    <dialog id="settingsDlg">
+        <div class="modal">
+            <header>
+                <strong><span class="svg-icon svg-icon-settings"></span> <span data-i18n="settings">Settings</span></strong>
+            </header>
+            <div class="content" style="max-height:70vh;overflow-y:auto">
+                <!-- Language Section -->
+                <div id="languageSection" class="settings-section">
+                    <h3><span class="svg-icon svg-icon-chat"></span> <span data-i18n="language">Language</span></h3>
+                    <div class="form-row" style="margin-top:8px;">
+                        <select id="languageSelect" style="width:100%;padding:8px;background:var(--input-bg);color:var(--text);border:1px solid var(--border);border-radius:6px;"></select>
+                    </div>
+                </div>
+
+                <hr style="margin: 5px 0; border: none; border-top: 1px solid var(--border);">
+
+                <!-- Desktop app only: host sync on this computer (memo-desktop-sync.js) -->
+                <div id="desktopServerSection" class="settings-section desktop-server" hidden></div>
+
+                <!-- Server Sync Section -->
+                <div id="serverSyncSection" class="settings-section">
+                    <h3><span class="svg-icon svg-icon-refresh"></span> <span data-i18n="serverSync">Server Sync</span></h3>
+                    <p class="muted">Connect to a remote server to sync your data across devices.</p>
+                    <div class="form-row">
+                        <label for="serverUrlInput">Server URL:</label>
+                        <input type="text" id="serverUrlInput" placeholder="https://example.com or http://192.168.1.100:5050" 
+                               style="width:100%;padding:8px;margin-top:4px;" />
+                        <p id="serverTransportWarning" class="transport-risk-warning" role="alert" hidden>
+                            HTTP is not encrypted. Another device on this network may observe or modify synced notes, files, and passwords. Use HTTPS whenever possible; use HTTP only for a server and network you trust.
+                        </p>
+                    </div>
+                    <div class="form-row" style="margin-top:8px;">
+                        <button id="saveServerUrl" class="primary">Save Server URL</button>
+                        <button id="clearServerUrl" class="ghost">Clear</button>
+                        <button id="scanPairingBtn" class="ghost" type="button" hidden><span class="svg-icon svg-icon-qr"></span> <span data-i18n="Scan the code from your computer">Scan the code from your computer</span></button>
+                    </div>
+                    <div id="serverUrlStatus" style="font-size:12px;"></div>
+                    <div class="form-row" style="margin-top:12px;">
+                        <label for="syncPasswordInput">Sync password (optional):</label>
+                        <input type="password" id="syncPasswordInput" placeholder="Match the server's password; blank = none"
+                               style="width:100%;padding:8px;margin-top:4px;" />
+                        <p class="muted" style="font-size:11px;margin-top:4px;">Required only if the server is configured with a password. Use HTTPS so it stays private in transit.</p>
+                    </div>
+                    <div class="form-row" style="margin-top:8px;">
+                        <button id="saveSyncPassword" class="primary">Save Password</button>
+                        <button id="clearSyncPassword" class="ghost">Clear</button>
+                    </div>
+                    <div id="syncPasswordStatus" style="font-size:12px;margin-top:8px;"></div>
+                </div>
+
+                <hr style="margin: 5px 0; border: none; border-top: 1px solid var(--border);">
+
+                <!-- Local Folder Storage Section -->
+                <div id="localFolderSection" class="settings-section">
+                    <h3><span class="svg-icon svg-icon-folder"></span> <span data-i18n="localFolder">Local Folder Storage</span></h3>
+                    <p class="muted">Choose a folder to save your memos and images locally on your device.</p>
+                    
+                    <div class="form-row" style="margin-top:12px;">
+                        <button id="chooseFolderBtn" class="primary"><span class="svg-icon svg-icon-folder-open"></span> Choose Folder</button>
+                        <p class="muted" style="font-size:11px;margin-top:4px;">
+                            Status: <span id="folderStatus">Not enabled</span>
+                        </p>
+                        <p class="muted" style="font-size:11px;margin-top:4px;">
+                            Requires Chrome/Edge desktop with File System Access API support.
+                        </p>
+                    </div>
+                </div>
+
+                <hr style="margin: 5px 0; border: none; border-top: 1px solid var(--border);">
+
+                <!-- Data Export/Import Section -->
+                <div class="settings-section">
+                    <h3><span class="svg-icon svg-icon-save"></span> <span data-i18n="dataBackup">Data Backup</span></h3>
+                    <p class="muted">Export or import your whole database (memos, finance and planner) including images and attachments. A backup always covers every page, whichever one you're on.</p>
+
+                    <!-- Scope: narrow a backup by variant and/or date range. All on
+                         and no range = a full backup of everything. -->
+                    <div class="form-row export-scope" style="margin-top:10px;">
+                        <div class="muted" style="font-size:12px;margin-bottom:6px;">Include:</div>
+                        <label style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:13px;cursor:pointer;"><input type="checkbox" id="exportInclMemos" checked style="width:auto;"> Memos</label>
+                        <label style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:13px;cursor:pointer;"><input type="checkbox" id="exportInclFinance" checked style="width:auto;"> Finance</label>
+                        <label style="display:inline-flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;"><input type="checkbox" id="exportInclPlanner" checked style="width:auto;"> Planner</label>
+                        <div class="muted" style="font-size:12px;margin:10px 0 4px;">Date range (optional):</div>
+                        <div class="inline" style="gap:8px;flex-wrap:wrap;align-items:center;">
+                            <input type="date" id="exportRangeFrom" aria-label="From date" style="padding:6px;" />
+                            <span class="muted">→</span>
+                            <input type="date" id="exportRangeTo" aria-label="To date" style="padding:6px;" />
+                        </div>
+                    </div>
+
+                    <div class="form-row" style="margin-top:12px;">
+                        <button id="exportDataBtn" class="primary"><span class="svg-icon svg-icon-archive"></span> <span data-i18n="exportData">Export Data</span></button>
+                        <p class="muted" style="font-size:11px;margin-top:4px;" data-i18n="Saves a password-protected backup (.memora) of your entries, images and assistant chats. On the phone it opens the share sheet. Very large libraries are split into parts.">
+                            Saves a password-protected backup (.memora) of your entries, images and assistant chats. On the phone it opens the share sheet. Very large libraries are split into parts.
+                        </p>
+                    </div>
+
+                    <div class="form-row" style="margin-top:16px;">
+                        <label for="importDataInput" class="primary import-label">
+                            <span class="svg-icon svg-icon-download"></span> <span data-i18n="importData">Import Data</span>
+                        </label>
+                        <input type="file" id="importDataInput" accept=".memora,.zip,application/zip,application/octet-stream" multiple style="display:none;" />
+                        <p class="muted" style="font-size:11px;margin-top:4px;" data-i18n="Choose a backup (.memora, or an older .zip) to restore your data.">
+                            Choose a backup (.memora, or an older .zip) to restore your data.
+                        </p>
+                    </div>
+
+                    <!-- The phone's own database (Android app only; memo-storage-ui.js shows it) -->
+                    <div id="phoneDbSection" class="form-row" style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px;" hidden>
+                        <p style="font-size:13px;font-weight:600;margin:0 0 4px;" data-i18n="Phone database">Phone database</p>
+                        <p class="muted" style="font-size:12px;margin:0 0 8px;" id="phoneDbState" data-i18n="Encrypted on this phone.">Encrypted on this phone.</p>
+                        <button id="phoneDbRecoveryBtn" class="secondary" type="button"><span class="svg-icon svg-icon-key"></span> <span id="phoneDbRecoveryLabel" data-i18n="Set recovery password">Set recovery password</span></button>
+                        <p class="muted" style="font-size:11px;margin-top:4px;" data-i18n="If Android restores Memora onto a new phone from its backup, this password opens your entries there. Without it, they come back from your server or a backup.">
+                            If Android restores Memora onto a new phone from its backup, this password opens your entries there. Without it, they come back from your server or a backup.
+                        </p>
+                    </div>
+
+                    <!-- DB backup buttons (server mode only) -->
+                    <div id="dbBackupSection" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:12px;">
+                        <p class="muted" style="font-size:12px;margin-bottom:8px;">SQLite Database backup:</p>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <button id="exportDbBtn" class="primary" style="font-size:12px;padding:6px 12px;"><span class="svg-icon svg-icon-save"></span> Export DB (.db)</button>
+                            <button id="exportDbJsonBtn" class="secondary" style="font-size:12px;padding:6px 12px;"><span class="svg-icon svg-icon-file"></span> Export JSON Backup</button>
+                        </div>
+                        <div style="margin-top:8px;">
+                            <label for="importDbInput" class="secondary" style="display:inline-block;padding:6px 12px;cursor:pointer;font-size:12px;border:1px solid var(--border);border-radius:6px;">
+                                <span class="svg-icon svg-icon-download"></span> Import/Restore DB
+                            </label>
+                            <input type="file" id="importDbInput" accept=".db,.json" style="display:none;" />
+                            <p class="muted" style="font-size:10px;margin-top:4px;">Accepts .db (SQLite) or .json (bundle) — replaces or merges data.</p>
+                        </div>
+                    </div>
+
+                    <div id="importExportStatus" style="margin-top:12px;padding:8px;border-radius:6px;display:none;"></div>
+                </div>
+
+                <hr style="margin: 5px 0; border: none; border-top: 1px solid var(--border);">
+
+                <!-- Verify & Repair Section (local blob library maintenance) -->
+                <div id="verifyRepairSection" class="settings-section">
+                    <h3><span class="svg-icon svg-icon-check"></span> <span data-i18n="verifyRepair">Verify &amp; Repair</span></h3>
+                    <p class="muted">Scan this device's local image storage for <strong>orphaned files</strong> (stored but unused — safe to delete to reclaim space) and <strong>broken references</strong> (entries pointing at a missing file).</p>
+                    <div class="form-row" style="margin-top:12px;">
+                        <button id="verifyScanBtn" class="primary" type="button"><span class="svg-icon svg-icon-refresh"></span> <span data-i18n="scanLibrary">Scan Library</span></button>
+                    </div>
+                    <div id="verifyReport" style="margin-top:12px;display:none;"></div>
+                    <div id="verifyStatus" style="font-size:12px;margin-top:8px;color:var(--muted);"></div>
+                </div>
+
+                <hr style="margin: 5px 0; border: none; border-top: 1px solid var(--border);">
+
+                <!-- Library Health Section -->
+                <div id="libraryHealthSection" class="settings-section">
+                    <h3><span class="svg-icon svg-icon-chart"></span> <span data-i18n="libraryHealth">Library Health</span></h3>
+                    <p class="muted">How well-organized your entries are: each earns a point for having tags and a point for being filed in a folder.</p>
+                    <div class="health-score-row">
+                        <div class="health-score" id="healthScore">—</div>
+                        <div class="health-bar" aria-hidden="true">
+                            <div class="health-bar-green" id="healthBarGreen" style="width:0%"></div>
+                            <div class="health-bar-amber" id="healthBarAmber" style="width:0%"></div>
+                        </div>
+                    </div>
+                    <div class="health-legend">
+                        <span><i class="dot green"></i> Organized <b id="healthOrganized">0</b></span>
+                        <span><i class="dot amber"></i> In progress <b id="healthPartial">0</b></span>
+                        <span><i class="dot grey"></i> Unorganized <b id="healthUnorg">0</b></span>
+                        <span class="health-total">of <b id="healthTotal">0</b></span>
+                    </div>
+                    <div class="form-row" style="margin-top:12px;">
+                        <button id="healthStartBtn" class="primary" type="button"><span class="svg-icon svg-icon-sparkles"></span> Start organizing</button>
+                    </div>
+                </div>
+
+                <hr style="margin: 5px 0; border: none; border-top: 1px solid var(--border);">
+
+                <!-- AI Analysis Section (server-mode only) -->
+                <div id="aiSettingsSection" class="settings-section">
+                    <h3><span class="svg-icon svg-icon-ai"></span> <span data-i18n="aiAnalysis">AI Analysis</span></h3>
+                    <p class="muted">This server’s own AI, for photo analysis and for AI contacts set to “Your server’s AI”. Bring your own key: a provider key, or your own model through Custom (for example Ollama). Keys stay on the server.</p>
+                    <div class="form-row">
+                        <label for="llmProviderSelect">Provider:</label>
+                        <select id="llmProviderSelect" style="width:100%;padding:8px;margin-top:4px;background:var(--input-bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;">
+                            <option value="gemini">Google Gemini</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="deepseek">DeepSeek</option>
+                            <option value="anthropic">Claude</option>
+                            <option value="custom">Custom (OpenAI-compatible)</option>
+                        </select>
+                    </div>
+                    <div class="form-row" style="margin-top:8px;">
+                        <label for="llmModelInput">Model:</label>
+                        <input type="text" id="llmModelInput" placeholder="e.g. gemini-3.8-flash" style="width:100%;padding:8px;margin-top:4px;" />
+                    </div>
+                    <div class="form-row" id="geminiKeyRow" style="margin-top:8px;">
+                        <label for="geminiApiKeyInput">Gemini API Key:</label>
+                        <input type="password" id="geminiApiKeyInput" placeholder="Leave blank to keep existing" style="width:100%;padding:8px;margin-top:4px;" />
+                    </div>
+                    <div class="form-row" id="openaiKeyRow" style="margin-top:8px;display:none;">
+                        <label for="openaiApiKeyInput">OpenAI API Key:</label>
+                        <input type="password" id="openaiApiKeyInput" placeholder="Leave blank to keep existing" style="width:100%;padding:8px;margin-top:4px;" />
+                    </div>
+                    <div class="form-row" id="deepseekKeyRow" style="margin-top:8px;display:none;">
+                        <label for="deepseekApiKeyInput">DeepSeek API Key:</label>
+                        <input type="password" id="deepseekApiKeyInput" placeholder="Leave blank to keep existing" style="width:100%;padding:8px;margin-top:4px;" />
+                    </div>
+                    <div class="form-row" id="anthropicKeyRow" style="margin-top:8px;display:none;">
+                        <label for="anthropicApiKeyInput">Claude API Key:</label>
+                        <input type="password" id="anthropicApiKeyInput" placeholder="Leave blank to keep existing" style="width:100%;padding:8px;margin-top:4px;" />
+                    </div>
+                    <div class="form-row" id="customKeyRow" style="margin-top:8px;display:none;">
+                        <label for="customBaseUrlInput">Address (OpenAI-compatible):</label>
+                        <input type="url" id="customBaseUrlInput" placeholder="https://openrouter.ai/api/v1" style="width:100%;padding:8px;margin-top:4px;" />
+                        <label for="customApiKeyInput" style="display:block;margin-top:8px;">API Key:</label>
+                        <input type="password" id="customApiKeyInput" placeholder="Leave blank to keep existing" style="width:100%;padding:8px;margin-top:4px;" />
+                    </div>
+                    <div class="form-row" id="ocrToggleRow" style="margin-top:12px;display:flex;align-items:center;gap:10px;">
+                        <label class="toggle-label" for="ocrEnabledToggle" style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;">
+                            <input type="checkbox" id="ocrEnabledToggle" style="width:16px;height:16px;cursor:pointer;" />
+                            <span>Use OCR to extract text from images</span>
+                        </label>
+                        <span id="ocrToggleNote" style="font-size:11px;color:var(--muted);"></span>
+                    </div>
+                    <div class="form-row" style="margin-top:8px;">
+                        <button id="saveLlmConfig" class="primary">Save AI Settings</button>
+                    </div>
+                    <div id="llmConfigStatus" style="font-size:12px;margin-top:6px;"></div>
+                    <div id="ocrCapabilityStatus" style="font-size:12px;margin-top:6px;opacity:0.9;"></div>
+                </div>
+
+                <div id="clientAiKeySection" class="settings-section">
+                    <h3><span class="svg-icon svg-icon-key"></span> <span data-i18n="personalAiKey">Personal AI keys</span></h3>
+                    <p class="muted" data-i18n="Bring your own key: Memora has no AI of its own. Your DeepSeek, Gemini, OpenAI, Claude or OpenAI-compatible keys are kept in the Vault, encrypted, and AI uses your default key even while the Vault is locked.">Bring your own key: Memora has no AI of its own. Your DeepSeek, Gemini, OpenAI, Claude or OpenAI-compatible keys are kept in the Vault, encrypted, and AI uses your default key even while the Vault is locked.</p>
+                    <div class="form-row" style="margin-top:8px;">
+                        <button id="openVaultAiKeys" class="primary" type="button"><span class="svg-icon svg-icon-lock"></span> <span data-i18n="Open the Vault">Open the Vault</span></button>
+                    </div>
+                    <div id="clientAiKeyStatus" style="font-size:12px;margin-top:6px;"></div>
+                </div>
+
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Debug Log Dialog -->
+    <dialog id="debugLogDlg">
+        <div class="modal">
+            <header>
+                <strong><span class="svg-icon svg-icon-bug"></span> Debug Log</strong>
+            </header>
+            <div class="content" style="max-height:70vh;overflow-y:auto">
+                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                    <button id="clearDebugLog" class="ghost">Clear Log</button>
+                    <button id="copyDebugLog" class="ghost">Copy to Clipboard</button>
+                </div>
+                <pre id="debugLogContent" style="background:var(--input-bg);padding:12px;border-radius:6px;font-size:11px;line-height:1.4;max-height:500px;overflow-y:auto;font-family:monospace;white-space:pre-wrap;word-break:break-all;"></pre>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Export PDF Dialog -->
+    <dialog id="exportPdfDlg">
+        <div class="modal">
+            <header>
+                <strong><span class="svg-icon svg-icon-file"></span> Export to PDF</strong>
+            </header>
+            <div class="content">
+                <div class="row">
+                    <label for="pdfExportMode">Export mode</label>
+                    <select id="pdfExportMode">
+                        <option value="quick">Quick (print)</option>
+                        <option value="detailed">Detailed (images + text)</option>
+                    </select>
+                    <div class="muted" id="pdfExportModeHint" style="margin-top:6px;font-size:12px;">Quick mode uses browser print-to-PDF.</div>
+                </div>
+                <div class="row">
+                    <label for="pdfExportPageSize">Page size</label>
+                    <select id="pdfExportPageSize">
+                        <option value="A4">A4</option>
+                        <option value="LETTER">Letter</option>
+                        <option value="LEGAL">Legal</option>
+                    </select>
+                </div>
+                <div class="row">
+                    <div id="pdfExportStatus" class="muted" style="font-size:12px;"></div>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="ghost" id="pdfExportCancelBtn"><span class="svg-icon svg-icon-x"></span> Cancel</button>
+                <span class="spacer"></span>
+                <button class="primary" id="pdfExportRunBtn"><span class="svg-icon svg-icon-download"></span> Export</button>
+            </div>
+        </div>
+    </dialog>

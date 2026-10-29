@@ -1,0 +1,145 @@
+    <!-- Image tools (memo-tools.js): the per-image Tools sheet, the shared
+         result sheet (codes, translation, cut-out) and the full-screen editor
+         (Privacy blur, Scan document). Ported from ImageDB. -->
+    <dialog id="imageToolsDlg" class="mobile-sheet image-tools-dlg" aria-labelledby="imageToolsTitle">
+        <button type="button" class="sheet-drag-handle" aria-label="Close image tools"></button>
+        <div class="modal">
+            <header>
+                <strong id="imageToolsTitle">Image tools</strong>
+                <span class="spacer"></span>
+                <button type="button" class="modal-close" id="imageToolsClose" aria-label="Close">✕</button>
+            </header>
+            <div class="content image-tools-body">
+                <div class="image-tools-preview"><img id="imageToolsPreview" alt=""></div>
+                <div class="image-tools-strip" id="imageToolsStrip" role="radiogroup" aria-label="Choose an image" hidden></div>
+                <div id="imageToolsList"></div>
+            </div>
+        </div>
+    </dialog>
+    <dialog id="toolResultDlg" class="mobile-sheet tool-result-dlg" aria-labelledby="toolResultTitle">
+        <button type="button" class="sheet-drag-handle" aria-label="Close"></button>
+        <div class="modal">
+            <header>
+                <strong id="toolResultTitle"></strong>
+                <span class="spacer"></span>
+                <button type="button" class="modal-close" id="toolResultClose" aria-label="Close">✕</button>
+            </header>
+            <div class="content tool-result-body" id="toolResultBody" aria-live="polite"></div>
+            <div class="actions tool-result-actions" id="toolResultActions"></div>
+        </div>
+    </dialog>
+    <dialog id="toolEditorDlg" class="tool-editor-dlg" aria-labelledby="toolEditorTitle">
+        <header class="tool-editor-head">
+            <strong id="toolEditorTitle"></strong>
+            <span class="spacer"></span>
+            <button type="button" class="modal-close" id="toolEditorClose" aria-label="Close">✕</button>
+        </header>
+        <div class="tool-editor-stage" id="toolEditorStage">
+            <canvas id="toolEditorCanvas"></canvas>
+            <svg id="toolEditorOverlay" class="tool-editor-overlay" aria-hidden="true"></svg>
+            <div class="tool-editor-busy" id="toolEditorBusy" hidden><span class="tool-spinner"></span><span id="toolEditorBusyText"></span></div>
+        </div>
+        <p class="tool-editor-hint" id="toolEditorHint"></p>
+        <div class="tool-editor-options" id="toolEditorOptions"></div>
+        <div class="actions tool-editor-actions" id="toolEditorActions"></div>
+    </dialog>
+    <!-- Auto-organize (memo-insights.js): on-device analysis status, smart
+         albums and organize suggestions. -->
+    <dialog id="autoOrganizeDlg" class="panel-dlg auto-organize-dlg" aria-labelledby="autoOrganizeTitle">
+        <div class="modal">
+            <header>
+                <strong id="autoOrganizeTitle">Auto-organize</strong>
+                <span class="spacer"></span>
+                <button type="button" class="modal-close" id="autoOrganizeClose" aria-label="Close">✕</button>
+            </header>
+            <div class="content auto-organize-body">
+                <p class="auto-organize-intro">Memora recognizes what is in each photo, on this phone, so you can search for it and get smart albums and tag suggestions. Nothing is uploaded, and nothing changes unless you tap a suggestion.</p>
+                <label class="auto-organize-switch"><input type="checkbox" id="autoOrganizeToggle" checked> <span>Analyze images on this phone</span></label>
+                <p class="auto-organize-status" id="autoOrganizeStatus" role="status" aria-live="polite"></p>
+                <div class="auto-organize-progress" id="autoOrganizeProgress" hidden><div class="auto-organize-progress-fill" id="autoOrganizeProgressFill"></div></div>
+                <section data-auto-albums-section hidden>
+                    <h4>Smart albums</h4>
+                    <div class="auto-album-list" id="autoOrganizeAlbums"></div>
+                </section>
+                <div class="auto-suggestions" id="autoOrganizeSuggestions" hidden></div>
+            </div>
+            <div class="actions">
+                <button type="button" class="ghost" id="autoOrganizeClearBtn">Clear results</button>
+                <span class="spacer"></span>
+            </div>
+        </div>
+    </dialog>
+    <!-- Duplicates (memo-duplicates.js): one pair at a time. -->
+    <dialog id="duplicateReviewDlg" class="panel-dlg duplicate-review-dlg" aria-labelledby="duplicateReviewTitle">
+        <div class="modal">
+            <header>
+                <strong id="duplicateReviewTitle">Duplicates</strong>
+                <span class="spacer"></span>
+                <button type="button" class="modal-close" id="duplicateReviewClose" aria-label="Close">✕</button>
+            </header>
+            <div class="content duplicate-review-body">
+                <p class="auto-organize-status" id="duplicateReviewStatus" role="status" aria-live="polite"></p>
+                <div class="auto-organize-progress" id="duplicateProgress" hidden><div class="auto-organize-progress-fill" id="duplicateProgressFill"></div></div>
+                <div class="duplicate-pair" id="duplicatePair"></div>
+            </div>
+            <div class="actions" id="duplicateReviewActions" hidden>
+                <button type="button" class="ghost" id="duplicateSkip">Skip</button>
+                <span class="spacer"></span>
+                <button type="button" class="secondary" id="duplicateKeepBoth">Keep both</button>
+            </div>
+        </div>
+    </dialog>
+    <!-- Clean up similar photos (memo-cleanup.js). -->
+    <dialog id="similarCleanupDlg" class="panel-dlg similar-cleanup-dlg" aria-labelledby="similarCleanupTitle">
+        <div class="modal">
+            <header>
+                <strong id="similarCleanupTitle">Clean up similar photos</strong>
+                <span class="spacer"></span>
+                <button type="button" class="modal-close" id="similarCleanupClose" aria-label="Close">✕</button>
+            </header>
+            <div class="content cleanup-body">
+                <p class="auto-organize-status" id="similarCleanupStatus" role="status" aria-live="polite"></p>
+                <div id="similarCleanupList" class="cleanup-list"></div>
+            </div>
+            <div class="actions"><span class="spacer"></span><button type="button" class="danger" id="similarCleanupApply" hidden></button></div>
+        </div>
+    </dialog>
+    <!-- Saved searches (memo-saved-searches.js). -->
+    <dialog id="savedSearchDlg" class="panel-dlg saved-search-dlg" aria-labelledby="savedSearchTitle">
+        <div class="modal">
+            <header>
+                <strong id="savedSearchTitle">Saved searches</strong>
+                <span class="spacer"></span>
+                <button type="button" class="modal-close" id="savedSearchClose" aria-label="Close">✕</button>
+            </header>
+            <div class="content saved-search-body">
+                <div id="savedSearchList" class="saved-search-list"></div>
+                <section data-auto-albums-section hidden>
+                    <h4>Smart albums</h4>
+                    <div class="auto-album-list" id="savedSearchAlbums"></div>
+                </section>
+                <section class="saved-search-form">
+                    <h4>Save the current view</h4>
+                    <p class="muted" id="savedSearchCurrent"></p>
+                    <label class="tool-field"><span>Name</span><input id="savedSearchName" type="text" maxlength="80" autocomplete="off" placeholder="For example: Receipts this month"></label>
+                    <label class="tool-field"><span>Only entries from</span>
+                        <select id="savedSearchDays">
+                            <option value="0">Any time</option>
+                            <option value="7">The last 7 days</option>
+                            <option value="30">The last 30 days</option>
+                            <option value="90">The last 90 days</option>
+                            <option value="365">The last year</option>
+                        </select>
+                    </label>
+                    <label class="saved-search-check"><input type="checkbox" id="savedSearchMissingDescription"> <span>Only entries without a description</span></label>
+                    <label class="saved-search-check"><input type="checkbox" id="savedSearchMissingTags"> <span>Only entries without tags</span></label>
+                    <label class="saved-search-check"><input type="checkbox" id="savedSearchMissingFolder"> <span>Only entries not in a folder</span></label>
+                </section>
+            </div>
+            <div class="actions">
+                <button type="button" class="ghost" id="savedSearchNew">New</button>
+                <span class="spacer"></span>
+                <button type="button" class="primary" id="savedSearchSave">Save search</button>
+            </div>
+        </div>
+    </dialog>

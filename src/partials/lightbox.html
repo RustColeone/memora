@@ -1,0 +1,11 @@
+    <div aria-hidden="true" class="lightbox" id="lightbox">
+        <button class="lbbtn lbclose" id="lbClose">Close ✕</button>
+        <button class="lbbtn lbprev" id="lbPrev"><span class="svg-icon svg-icon-chevron-left"></span> </button>
+        <!-- prevent native drag: -->
+        <img alt="preview" draggable="false" id="lbImg" />
+        <button class="lbbtn lbnext" id="lbNext"><span class="svg-icon svg-icon-chevron-right"></span> </button>
+        <div class="lbcounter" id="lbCounter">1/1</div>
+        <!-- Reader filmstrip: page thumbnails for multi-image entries (auto-hidden
+             for single images). Click a thumb to jump to that page. -->
+        <div class="lb-strip" id="lbStrip" aria-label="Pages"></div>
+    </div>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12 and newer: cloud backup and phone-to-phone transfer. Same rules as
+  backup_rules.xml: everything except the Keystore-sealed SQLite key file and
+  the unencrypted copy kept from before the switch to the encrypted database.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="sqlite_encrypted_shared_prefs.xml" />
+        <!-- The unencrypted copy kept when the phone switched to the encrypted
+             database stays on this phone only. -->
+        <exclude domain="file" path="MemoSystem/memosystem.pre-native.sqlite" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="sqlite_encrypted_shared_prefs.xml" />
+        <!-- The unencrypted copy kept when the phone switched to the encrypted
+             database stays on this phone only. -->
+        <exclude domain="file" path="MemoSystem/memosystem.pre-native.sqlite" />
+    </device-transfer>
+</data-extraction-rules>

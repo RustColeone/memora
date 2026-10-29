@@ -1,0 +1,31 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>html{background:#141518;color:#eee;font:16px system-ui}body{padding:24px}button{padding:12px 20px} [hidden]{display:none}</style>
+<div id="failure" hidden><p>Could not prepare the app. Your local data has been kept.</p><button id="retry">Retry</button></div>
+<script>
+// Loaded directly from the APK, before Capacitor or any cached application JS.
+// A unique startup URL is resolved directly from the APK by both the WebView
+// and service-worker network handlers, so old caches cannot supply this page.
+async function prepare() {
+  document.getElementById('failure').hidden = true;
+  try {
+    if (navigator.serviceWorker) {
+      for (const registration of await navigator.serviceWorker.getRegistrations()) {
+        if ([registration.active, registration.waiting, registration.installing].some(worker => worker && new URL(worker.scriptURL).pathname === '/sw.js')) {
+          await registration.unregister();
+        }
+      }
+    }
+    if (window.caches) {
+      for (const name of await caches.keys()) if (name.startsWith('memora-shell-')) await caches.delete(name);
+    }
+    NativeShell.ready();
+  } catch (error) {
+    console.warn('Packaged shell preparation failed', error);
+    document.getElementById('failure').hidden = false;
+  }
+}
+document.getElementById('retry').onclick = prepare;
+prepare();
+</script>

@@ -1,0 +1,123 @@
+apply plugin: 'com.android.application'
+
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+android {
+    namespace = "com.laplacengan.memora"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.laplacengan.memora"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 17
+        versionName "0.0.17"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        release {
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
+            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+            storePassword keystoreProperties['storePassword']
+        }
+    }
+    buildTypes {
+        debug {
+            if (project.hasProperty('memoraQa')) {
+                applicationIdSuffix '.qa'
+                resValue 'string', 'app_name', 'Memora QA'
+                resValue 'string', 'title_activity_main', 'Memora QA'
+            }
+            // -PmemoraR8: shrink the (still inspectable) QA build with the release
+            // R8 rules, to test what R8 does without opening up release builds.
+            if (project.hasProperty('memoraR8')) {
+                minifyEnabled true
+                shrinkResources true
+                proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            }
+        }
+        release {
+            signingConfig signingConfigs.release
+            debuggable false
+            // R8: shrink, optimize and obfuscate (keep rules in proguard-rules.pro).
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        // Test only: the release build exactly as R8 shrinks it (not debuggable),
+        // installed as Memora QA with the debug key, so it updates a QA install
+        // and can be driven over adb. WebView inspection comes from a generated
+        // src/r8qa/assets/capacitor.config.json (git-ignored), never from code.
+        // Regenerate it after a cap sync (from memoSystem/):
+        //   node -e "const f=require('fs'),c=JSON.parse(f.readFileSync('android/app/src/main/assets/capacitor.config.json'));c.android.webContentsDebuggingEnabled=true;f.mkdirSync('android/app/src/r8qa/assets',{recursive:true});f.writeFileSync('android/app/src/r8qa/assets/capacitor.config.json',JSON.stringify(c,null,2))"
+        // Build: gradlew assembleR8qa [-PmemoraAbi=x86_64]
+        r8qa {
+            initWith release
+            signingConfig signingConfigs.debug
+            applicationIdSuffix '.qa'
+            resValue 'string', 'app_name', 'Memora QA'
+            resValue 'string', 'title_activity_main', 'Memora QA'
+            matchingFallbacks = ['release']
+            // -PmemoraAbi=x86_64 keeps one processor type, for a small emulator.
+            if (project.hasProperty('memoraAbi')) ndk { abiFilters(*project.property('memoraAbi').split(',')) }
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation "androidx.biometric:biometric:$androidxBiometricVersion"
+    implementation "com.google.android.gms:play-services-mlkit-text-recognition:$mlKitTextRecognitionVersion"
+    implementation "com.google.android.gms:play-services-mlkit-text-recognition-chinese:$mlKitTextChineseVersion"
+    implementation "com.google.android.gms:play-services-mlkit-text-recognition-japanese:$mlKitTextJapaneseVersion"
+    implementation "com.google.android.gms:play-services-mlkit-text-recognition-korean:$mlKitTextKoreanVersion"
+    // Image tools (same set as ImageDB): unbundled Google Play services models
+    // for labels, faces, codes, subject cut-outs, language ID and the document
+    // scanner, plus the LiteRT runtime for "find similar". None of those models
+    // ship inside the app; translation models download per language on demand.
+    implementation "com.google.android.gms:play-services-base:$playServicesBaseVersion"
+    implementation "com.google.android.gms:play-services-mlkit-image-labeling:$mlKitImageLabelingVersion"
+    implementation "com.google.android.gms:play-services-mlkit-face-detection:$mlKitFaceDetectionVersion"
+    implementation "com.google.android.gms:play-services-tflite-java:$playServicesTfliteVersion"
+    implementation "com.google.android.gms:play-services-mlkit-barcode-scanning:$mlKitBarcodeVersion"
+    implementation "com.google.android.gms:play-services-mlkit-subject-segmentation:$mlKitSubjectSegmentationVersion"
+    implementation "com.google.android.gms:play-services-mlkit-language-id:$mlKitLanguageIdVersion"
+    implementation "com.google.mlkit:translate:$mlKitTranslateVersion"
+    implementation "com.google.android.gms:play-services-mlkit-document-scanner:$mlKitDocumentScannerVersion"
+    // "Scan": Google's code scanner UI from Play services (no camera permission in Memora).
+    implementation "com.google.android.gms:play-services-code-scanner:$codeScannerVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

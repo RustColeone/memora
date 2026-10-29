@@ -1,0 +1,36 @@
+<!-- Mobile Menu Overlay -->
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+
+    <!-- Mobile Menu -->
+    <div class="mobile-menu" id="mobileMenu">
+        <div class="mobile-menu-header">
+            <h3 data-i18n="menu">Menu</h3>
+            <button id="mobileMenuClose">✕</button>
+        </div>
+        <div class="menu-tiles">
+            <button class="menu-tile" id="mobileDiscoverBtn" type="button" hidden><span class="svg-icon svg-icon-compass"></span><span data-i18n="Discover">Discover</span></button>
+            <button class="menu-tile" id="mobileVaultBtn" type="button" hidden><span class="svg-icon svg-icon-lock"></span><span data-i18n="Vault">Vault</span></button>
+            <button class="menu-tile" id="mobileScanBtn" type="button" hidden><span class="svg-icon svg-icon-qr"></span><span data-i18n="Scan">Scan</span></button>
+            <button class="menu-tile" id="mobileRecycleBinBtn" type="button" title="Recycle Bin"><span class="svg-icon svg-icon-trash"></span><span data-i18n="bin">Bin</span></button>
+            <button class="menu-tile" id="mobileThemeBtn" type="button" title="Theme" data-i18n-title="Theme"><span class="svg-icon svg-icon-palette"></span><span data-i18n="Theme">Theme</span></button>
+        </div>
+        <div class="mobile-menu-scroll">
+        <div class="sp-section-label" data-i18n="View">View</div>
+        <button id="mobileFiltersBtn" title="More filters"><span class="svg-icon svg-icon-filter"></span> <span data-i18n="filters">Filters</span></button>
+        {{ MOBILE_MENU_EXTRA | safe }}
+
+        <div class="sp-section-label" data-i18n="Tools">Tools</div>
+        <button id="mobileChatBtn" title="Ask questions"><span class="svg-icon svg-icon-chat"></span> <span data-i18n="chat">Chat</span></button>
+        <button id="mobileAdvancedToolsBtn" title="Open all tools" data-i18n-title="Open all tools"><span class="svg-icon svg-icon-sparkles"></span> <span data-i18n="All tools">All tools</span></button>
+        <button id="mobileExportPdfBtn" title="Export to PDF" data-i18n-title="Export to PDF"><span class="svg-icon svg-icon-file"></span> <span data-i18n="Export to PDF">Export to PDF</span></button>
+
+        <div class="sp-section-label" data-i18n="Data &amp; settings">Data &amp; settings</div>
+        <button id="mobileSyncBackupBtn" title="Sync and backup" data-i18n-title="Sync and backup"><span class="svg-icon svg-icon-cloud"></span> <span data-i18n="Sync &amp; backup">Sync &amp; backup</span></button>
+        <button id="mobileSettingsBtn" title="Settings" data-i18n-title="settings"><span class="svg-icon svg-icon-settings"></span> <span data-i18n="settings">Settings</span></button>
+        <button id="privacySettingsBtn" title="Privacy &amp; app lock"><span class="svg-icon svg-icon-key"></span> <span data-i18n="Privacy">Privacy</span></button>
+        <button id="aboutBtn" title="About Memora" data-i18n-title="About Memora"><span class="svg-icon svg-icon-info"></span> <span data-i18n="About">About</span></button>
+        <button class="debug-only" id="mobileDebugLogBtn" title="Debug Log"><span class="svg-icon svg-icon-bug"></span> Debug Log</button>
+        </div>
+
+        <div class="sp-version"><span>{{ VARIANT_LABEL }} · v{{ APP_VERSION }}</span></div>
+    </div>

@@ -1,0 +1,244 @@
+    <!-- Reusable standalone media tools: shared by Memo, Finance, and Planner. -->
+    <dialog id="panelDlg" class="panel-dlg">
+        <div class="modal panel-modal panel-tool-shell">
+            <section id="panelPage1" class="panel-page">
+                <header>
+                    <strong><span class="svg-icon svg-icon-image"></span> Combine images</strong>
+                    <button type="button" class="modal-close" id="closePanelBtn" aria-label="Close Combine images">✕</button>
+                </header>
+                <p class="panel-subtitle">Arrange two or more images, then stitch them into one picture.</p>
+                <div id="panelList" class="panel-list" aria-label="Images to combine"></div>
+                <div class="actions">
+                    <span id="panelItemCount" class="muted">No images yet</span>
+                    <span class="spacer"></span>
+                    <button class="primary" id="panelCombineBtn" type="button" disabled>Combine <span aria-hidden="true">→</span></button>
+                </div>
+            </section>
+
+            <section id="panelPage2" class="panel-page hidden">
+                <header>
+                    <button type="button" class="ghost panel-back-btn" id="panelBackBtn"><span aria-hidden="true">←</span> Back</button>
+                    <strong class="panel-centered-title">Combine options</strong>
+                    <button type="button" class="modal-close" id="closePanelBtn2" aria-label="Close Combine images">✕</button>
+                </header>
+                <button type="button" class="panel-opts-toggle" id="panelOptsToggle" aria-expanded="false" aria-controls="panelOpts">
+                    <span class="panel-opts-toggle-label">Layout &amp; format</span>
+                    <span class="panel-opts-chev" aria-hidden="true">⌄</span>
+                </button>
+                <div class="panel-opts collapsed" id="panelOpts" hidden inert aria-hidden="true">
+                    <div class="panel-opt-row">
+                        <span class="panel-opt-label" id="panelDirectionLabel">Direction</span>
+                        <div class="panel-dir-btns" role="radiogroup" aria-labelledby="panelDirectionLabel">
+                            <button type="button" class="panel-dir-btn active" role="radio" aria-checked="true" data-dir="vertical">Vertical</button>
+                            <button type="button" class="panel-dir-btn" role="radio" aria-checked="false" data-dir="horizontal">Horizontal</button>
+                        </div>
+                    </div>
+                    <div class="panel-opt-row">
+                        <label class="panel-opt-label" for="panelResizeToggle">Resize to uniform size</label>
+                        <input type="checkbox" id="panelResizeToggle" checked>
+                    </div>
+                    <div class="panel-opt-row">
+                        <label class="panel-opt-label" for="panelGapInput">Gap between images</label>
+                        <div class="panel-number-color"><input type="number" id="panelGapInput" value="8" min="0" max="200"><span>px</span><input type="color" id="panelGapColor" value="#ffffff" aria-label="Gap color"></div>
+                    </div>
+                    <div class="panel-opt-row">
+                        <label class="panel-opt-label" for="panelBorderInput">Outside border</label>
+                        <div class="panel-number-color"><input type="number" id="panelBorderInput" value="0" min="0" max="200"><span>px</span><input type="color" id="panelBorderColor" value="#ffffff" aria-label="Border color"></div>
+                    </div>
+                    <div class="panel-opt-row">
+                        <span class="panel-opt-label" id="panelFormatLabel">Image format</span>
+                        <div class="panel-dir-btns" role="radiogroup" aria-labelledby="panelFormatLabel">
+                            <button type="button" class="panel-fmt-btn active" role="radio" aria-checked="true" data-fmt="webp">WebP</button>
+                            <button type="button" class="panel-fmt-btn" role="radio" aria-checked="false" data-fmt="png">PNG</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel-preview-wrap" id="panelPreview" aria-live="polite"><canvas id="panelCanvas" aria-label="Combined image preview"></canvas></div>
+                <div class="actions compact-actions">
+                    <button class="secondary" id="panelSaveEntryBtn" type="button" title="Save as a new entry" aria-label="Save as a new entry"><span class="svg-icon svg-icon-save"></span><span class="action-label-full">Save as new entry</span><span class="action-label-compact">Save</span></button>
+                    <span class="spacer"></span>
+                    <button class="ghost" id="panelShareBtn" type="button"><span class="svg-icon svg-icon-share"></span> Share</button>
+                    <button class="primary" id="panelDownloadBtn" type="button"><span class="svg-icon svg-icon-download"></span> Export</button>
+                </div>
+            </section>
+        </div>
+    </dialog>
+    <input id="panelFileInput" type="file" accept="image/*" multiple hidden>
+
+    <!-- GIF Editor owns its source choice, matching the ImageDB two-page flow. -->
+    <dialog id="gifEditorDlg" class="gif-editor-dlg">
+        <div class="modal gif-editor-modal gif-editor-shell">
+            <section id="gifEditorPage1" class="gif-editor-page">
+                <header>
+                    <strong><span class="svg-icon svg-icon-play"></span> GIF Editor</strong>
+                    <button type="button" class="modal-close" id="gifEditorCloseBtn" aria-label="Close GIF Editor">✕</button>
+                </header>
+                <div class="ge-pick-area">
+                    <div class="ge-pick-btns">
+                        <button class="primary" id="gifEditorFromDeviceBtn" type="button"><span class="svg-icon svg-icon-folder"></span> From Device</button>
+                        <button id="gifEditorFromLibraryBtn" type="button"><span class="svg-icon svg-icon-image"></span> From Library</button>
+                    </div>
+                    <p class="muted">Select an animated GIF to trim, crop, and export.</p>
+                </div>
+                <input id="gifEditorFileInput" type="file" accept="image/gif,.gif" hidden>
+            </section>
+            <section id="gifEditorPage2" class="gif-editor-page hidden">
+                <header>
+                    <button type="button" class="ghost panel-back-btn" id="gifEditorBackBtn"><span aria-hidden="true">←</span> Back</button>
+                    <strong class="panel-centered-title">Edit GIF</strong>
+                    <button type="button" class="modal-close" id="gifEditorCloseBtn2" aria-label="Close GIF Editor">✕</button>
+                </header>
+                <div class="content gif-editor-body">
+                    <div class="gif-editor-preview-wrap"><canvas id="gifEditorCanvas" aria-label="GIF preview"></canvas></div>
+                    <div id="gifEditorMeta" class="muted gif-editor-meta">Load a GIF to edit its frames.</div>
+                    <div class="gif-editor-controls">
+                        <label class="panel-ctl"><span>Speed <output id="gifEditorSpeedOut">1×</output></span><input id="gifEditorSpeed" type="range" min="0.25" max="3" step="0.25" value="1"></label>
+                        <label class="panel-ctl"><span>Keep every</span><select id="gifEditorFrameStep"><option value="1">frame</option><option value="2">2nd frame</option><option value="3">3rd frame</option><option value="4">4th frame</option></select></label>
+                        <label class="panel-ctl"><span>Trim start</span><input id="gifEditorTrimStart" type="number" min="1" value="1"></label>
+                        <label class="panel-ctl"><span>Trim end</span><input id="gifEditorTrimEnd" type="number" min="1" value="1"></label>
+                        <label class="panel-ctl"><span>Palette quality</span><select id="gifEditorQuality"><option value="256">Best (256 colors)</option><option value="128">Balanced (128 colors)</option><option value="64">Small (64 colors)</option></select></label>
+                    </div>
+                    <div class="gif-editor-crop-row"><span class="muted">Drag on the preview to crop.</span><button type="button" class="ghost" id="gifEditorResetCropBtn">Reset crop</button></div>
+                    <div id="gifEditorStatus" class="muted gif-editor-status" aria-live="polite"></div>
+                </div>
+                <div class="actions compact-actions">
+                    <button type="button" class="ghost action-icon-only-narrow" id="gifEditorShareBtn" title="Share GIF" aria-label="Share GIF"><span class="svg-icon svg-icon-share"></span><span class="action-label-full">Share</span></button>
+                    <span class="spacer"></span>
+                    <button type="button" class="secondary" id="gifEditorSaveEntryBtn" title="Save as a new entry" aria-label="Save as a new entry"><span class="svg-icon svg-icon-save"></span><span class="action-label-full">Save as new entry</span><span class="action-label-compact">Save</span></button>
+                    <button type="button" class="primary" id="gifEditorDownloadBtn" title="Download GIF" aria-label="Download GIF"><span class="svg-icon svg-icon-download"></span><span class="action-label-full">Download GIF</span><span class="action-label-compact">Export</span></button>
+                </div>
+            </section>
+        </div>
+    </dialog>
+
+    <!-- Advanced Tools remains compact: each row opens the tool's own source page. -->
+    <dialog id="advancedToolsDlg" class="advanced-tools-dlg">
+        <div class="modal advanced-tools-modal">
+            <header><strong><span class="svg-icon svg-icon-sparkles"></span> <span data-i18n="All tools">All tools</span></strong></header>
+            <div class="content">
+                <section class="advanced-tools-section" data-section="create">
+                    <h4>Create</h4>
+                    <div class="advanced-tools-grid">
+                    <button type="button" id="advancedScanBtn" class="advanced-tool" hidden>
+                        <span class="svg-icon svg-icon-file"></span>
+                        <span class="advanced-tool-copy"><strong>Scan documents</strong><small>Scan paper with the camera: edges found and straightened, saved as a new entry.</small></span>
+                        <span class="advanced-tool-chevron" aria-hidden="true">›</span>
+                    </button>
+                    <button type="button" id="advancedPanelBtn" class="advanced-tool">
+                        <span class="svg-icon svg-icon-image"></span>
+                        <span class="advanced-tool-copy"><strong>Panel Images</strong><small>Arrange and combine images with a live preview.</small></span>
+                        <span class="advanced-tool-chevron" aria-hidden="true">›</span>
+                    </button>
+                    <button type="button" id="advancedGifEditorBtn" class="advanced-tool">
+                        <span class="svg-icon svg-icon-play"></span>
+                        <span class="advanced-tool-copy"><strong>GIF Editor</strong><small>Trim, crop, and export an animated GIF.</small></span>
+                        <span class="advanced-tool-chevron" aria-hidden="true">›</span>
+                    </button>
+                    </div>
+                </section>
+                <section class="advanced-tools-section" data-section="edit">
+                    <h4>Edit</h4>
+                    <div class="advanced-tools-grid">
+                    <button type="button" id="advancedImageEditorBtn" class="advanced-tool"><span class="svg-icon svg-icon-edit"></span><span class="advanced-tool-copy"><strong data-i18n="Image Editor">Image Editor</strong><small data-i18n="Crop, rotate, adjust light and colour, tune curves, and save a copy.">Crop, rotate, adjust light and colour, tune curves, and save a copy.</small></span><span class="advanced-tool-chevron" aria-hidden="true">&#8250;</span></button>
+                    <button type="button" id="advancedExifBtn" class="advanced-tool">
+                        <span class="svg-icon svg-icon-settings"></span>
+                        <span class="advanced-tool-copy"><strong>EXIF Editor</strong><small>Edit or remove embedded JPEG metadata.</small></span>
+                        <span class="advanced-tool-chevron" aria-hidden="true">›</span>
+                    </button>
+                    </div>
+                </section>
+                <section class="advanced-tools-section" data-section="organize" id="advancedOrganizeSection">
+                    <h4>Organize</h4>
+                    <div class="advanced-tools-grid">
+                    <button type="button" id="advancedAutoOrganizeBtn" class="advanced-tool">
+                        <span class="svg-icon svg-icon-sparkles"></span>
+                        <span class="advanced-tool-copy"><strong>Auto-organize</strong><small>Recognize what is in each photo, on this phone, for search, smart albums and tag suggestions.</small></span>
+                        <span class="advanced-tool-chevron" aria-hidden="true">›</span>
+                    </button>
+                    <button type="button" id="advancedDuplicatesBtn" class="advanced-tool">
+                        <span class="svg-icon svg-icon-copy"></span>
+                        <span class="advanced-tool-copy"><strong>Duplicates</strong><small>Find entries with the same or nearly the same image and decide what to keep.</small></span>
+                        <span class="advanced-tool-chevron" aria-hidden="true">›</span>
+                    </button>
+                    <button type="button" id="advancedCleanupBtn" class="advanced-tool">
+                        <span class="svg-icon svg-icon-image"></span>
+                        <span class="advanced-tool-copy"><strong>Clean up similar photos</strong><small>Group bursts and retakes, keep the best one, and move the rest to the Bin.</small></span>
+                        <span class="advanced-tool-chevron" aria-hidden="true">›</span>
+                    </button>
+                    <button type="button" id="advancedSavedSearchBtn" class="advanced-tool">
+                        <span class="svg-icon svg-icon-search"></span>
+                        <span class="advanced-tool-copy"><strong>Saved searches</strong><small>Save what you are looking at as a smart folder that updates by itself.</small></span>
+                        <span class="advanced-tool-chevron" aria-hidden="true">›</span>
+                    </button>
+                    </div>
+                </section>
+                <p class="muted advanced-tools-note">More tools for one image (QR codes, translate, privacy blur, remove background, scan a page) are under Image tools in an entry's ··· menu, or in an image's page menu.</p>
+                <div id="advancedToolsStatus" class="muted advanced-tools-status" aria-live="polite"></div>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Reusable, entry-grouped Pick from Library dialog. -->
+    <dialog id="libMediaPickerDlg" class="mobile-sheet libpick-dlg">
+        <button type="button" class="sheet-drag-handle" aria-label="Close library picker"></button>
+        <div class="modal">
+            <header>
+                <strong id="libPickTitle">Pick from Library</strong>
+                <span id="libPickCount" class="lib-picker-count"></span>
+                <button class="modal-close" id="libPickClose" type="button" aria-label="Close library picker">✕</button>
+            </header>
+            <div class="lib-picker-toolbar">
+                <label class="lib-picker-search"><span class="svg-icon svg-icon-search" aria-hidden="true"></span><input id="libPickSearch" type="search" placeholder="Search descriptions and tags…" aria-label="Search library"></label>
+                <button type="button" class="ghost lib-picker-tool-btn" id="libPickFilterBtn" aria-pressed="false" aria-haspopup="dialog" aria-controls="filtersDlg" aria-label="Picker filters"><span class="lib-picker-tool-icon"><span class="svg-icon svg-icon-filter" aria-hidden="true"></span></span></button>
+                <button type="button" class="ghost lib-picker-tool-btn" id="libPickSafeBtn" aria-pressed="false" aria-label="Open Safe" hidden><span class="svg-icon svg-icon-lock"></span></button>
+            </div>
+            <nav id="libPickChips" class="breadcrumb lib-picker-breadcrumb" aria-label="Active library filters" hidden></nav>
+            <div id="libPickGrid" class="libpick-grid"></div>
+            <div class="actions">
+                <button class="ghost" id="libPickCancel" type="button" data-i18n="cancel">Cancel</button>
+                <span class="spacer"></span>
+                <button class="primary" id="libPickDone" type="button" disabled>Use</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Picker filters reuse the main #filtersDlg via MemoFilterDialog.openCapture. -->
+
+    <!-- Per-image JPEG metadata editor. The original embedded segments are kept
+         with the memo entry so edits can be reverted without a second file. -->
+    <dialog id="metadataEditorDlg" class="panel-dlg advanced-tool-dlg" aria-labelledby="metadataEditorTitle">
+        <div class="modal metadata-editor-modal">
+            <header>
+                <div class="metadata-editor-heading">
+                    <strong id="metadataEditorTitle">Advanced metadata</strong>
+                    <span id="metadataEditorFileName" class="metadata-editor-file"></span>
+                </div>
+                <button type="button" class="modal-close" id="metadataEditorClose" aria-label="Close metadata editor">✕</button>
+            </header>
+            <div class="content metadata-editor-body">
+                <p class="advanced-disclosure" id="metadataEmbeddedNote">Edits are written into the image's own embedded metadata (EXIF). A copy of the original is kept so you can revert at any time. Privacy removal covers EXIF GPS data and selected camera identifiers only; XMP and IPTC are not changed.</p>
+                <div id="metadataUnsupported" class="field-hint" role="status" hidden>Embedded-metadata editing is available for JPEG images.</div>
+                <div id="metadataEmbeddedFields" class="metadata-fields" hidden>
+                    <div class="field"><label for="metadataDescription">Description</label><textarea id="metadataDescription" rows="3" maxlength="4000"></textarea></div>
+                    <div class="field"><label for="metadataCreator">Artist</label><input id="metadataCreator" type="text" maxlength="500"></div>
+                    <div class="field"><label for="metadataCopyright">Copyright</label><input id="metadataCopyright" type="text" maxlength="500"></div>
+                    <div class="field"><label for="metadataCapturedAt">Date captured</label><input id="metadataCapturedAt" type="datetime-local"></div>
+                </div>
+                <section class="image-info-section" id="metadataReadonlySection" hidden>
+                    <h4>Other embedded details</h4>
+                    <div class="image-info-grid" id="metadataReadonlyGrid"></div>
+                </section>
+                <div class="metadata-privacy-actions" id="metadataPrivacyActions" hidden>
+                    <button type="button" class="ghost danger-ghost" id="metadataStripBtn" hidden><span class="svg-icon svg-icon-warning"></span> Remove EXIF GPS &amp; selected camera IDs</button>
+                    <button type="button" class="ghost" id="metadataRevertBtn" hidden>Revert to original</button>
+                </div>
+                <div id="metadataEditorStatus" class="muted metadata-editor-status" role="status" aria-live="polite" hidden></div>
+            </div>
+            <div class="actions">
+                <button type="button" class="ghost" id="metadataEditorCancel" data-i18n="cancel">Cancel</button>
+                <span class="spacer"></span>
+                <button type="button" class="primary" id="metadataEditorSave" disabled>Save embedded metadata</button>
+            </div>
+        </div>
+    </dialog>
+    {% include 'partials/dialogs-tools.html' %}

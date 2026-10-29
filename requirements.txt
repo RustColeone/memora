@@ -1,0 +1,9 @@
+Flask>=3.1
+Werkzeug>=3.0
+requests>=2.31
+waitress>=3.0         # the production server (memora_server.py)
+
+# Optional, for the AI provider the server uses (install the ones you need):
+#   anthropic>=1.15.0      Claude (official SDK; 1.x adds the refusal fallback)
+#   openai>=2.6            OpenAI and every OpenAI-compatible service (DeepSeek, Ollama, OpenRouter...)
+#   google-generativeai    Gemini photo analysis

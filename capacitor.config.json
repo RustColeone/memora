@@ -1,0 +1,29 @@
+{
+  "appId": "com.laplacengan.memora",
+  "appName": "Memora",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true,
+    "errorPath": "static/webview-update.html"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "SystemBars": {
+      "insetsHandling": "disable"
+    },
+    "CapacitorSQLite": {
+      "androidIsEncryption": true,
+      "androidBiometric": {
+        "biometricAuth": false
+      }
+    }
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "minWebViewVersion": 85
+  }
+}

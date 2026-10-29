@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Allows the app to reach the user's self-hosted Memo System server over plain HTTP.
+  Android blocks cleartext (HTTP) traffic by default on API 28+. This whole app exists
+  to sync with a server the user runs themselves, which is typically HTTP on a LAN.
+
+  For a tighter setup, replace base-config below with a domain-config that lists only
+  your server's IP/host (see HTTP-CONFIG-GUIDE.md in the project root).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

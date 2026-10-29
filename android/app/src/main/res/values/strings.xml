@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Memora</string>
+    <string name="title_activity_main">Memora</string>
+    <string name="package_name">com.laplacengan.memora</string>
+    <string name="custom_url_scheme">com.laplacengan.memora</string>
+</resources>

@@ -1,0 +1,377 @@
+    <header>
+        <div class="bar">
+            <div class="brand-dropdown">
+                <button class="brand" id="brandMenuButton" type="button" aria-haspopup="menu" aria-expanded="false"><span class="svg-icon svg-icon-calendar"></span> Planner <span class="svg-icon svg-icon-chevron-down"></span> </button>
+                {% include 'partials/brand-menu.html' %}
+            </div>
+            <span class="today-pill" id="todayPill"></span>
+            <div class="spacer"></div>
+            <div id="syncStatus" class="sync-status" style="display:none"><span id="syncIcon"></span><span id="syncText"></span></div>
+            <button id="chatBtn" class="hdr-btn" title="Ask the assistant"><span class="hdr-ic"><span class="svg-icon svg-icon-chat"></span> </span><span class="btn-label" data-i18n="chat">Chat</span></button>
+            <button id="themeToggleBtn" class="icon" title="Toggle theme"><span class="svg-icon svg-icon-moon"></span> </button>
+            <button id="hamburgerBtn" class="icon" title="Menu" data-i18n-title="menu"><span class="svg-icon svg-icon-menu"></span> </button>
+        </div>
+    </header>
+
+    <!-- Mobile / hamburger menu (consistent with memo & finance pages) -->
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    <div class="mobile-menu" id="mobileMenu">
+        <div class="mobile-menu-header">
+            <h3 data-i18n="menu">Menu</h3>
+            <button id="mobileMenuClose">✕</button>
+        </div>
+        <div class="menu-tiles">
+            <button class="menu-tile" id="mobileDiscoverBtn" type="button" hidden><span class="svg-icon svg-icon-compass"></span><span data-i18n="Discover">Discover</span></button>
+            <button class="menu-tile" id="mobileVaultBtn" type="button" hidden><span class="svg-icon svg-icon-lock"></span><span data-i18n="Vault">Vault</span></button>
+            <button class="menu-tile" id="mobileScanBtn" type="button" hidden><span class="svg-icon svg-icon-qr"></span><span data-i18n="Scan">Scan</span></button>
+            <button class="menu-tile" id="mobileThemeBtn" type="button" title="Theme" data-i18n-title="Theme"><span class="svg-icon svg-icon-palette"></span><span data-i18n="Theme">Theme</span></button>
+        </div>
+        <div class="mobile-menu-scroll">
+        <div class="sp-section-label" data-i18n="Tools">Tools</div>
+        <button id="mobileChatBtn" title="Ask the assistant"><span class="svg-icon svg-icon-chat"></span> <span data-i18n="chat">Chat</span></button>
+        <button id="mobileAdvancedToolsBtn" title="Open all tools" data-i18n-title="Open all tools"><span class="svg-icon svg-icon-sparkles"></span> <span data-i18n="All tools">All tools</span></button>
+
+        <div class="sp-section-label" data-i18n="Data &amp; settings">Data &amp; settings</div>
+        <button id="mobileSyncBackupBtn" title="Sync and backup" data-i18n-title="Sync and backup"><span class="svg-icon svg-icon-cloud"></span> <span data-i18n="Sync &amp; backup">Sync &amp; backup</span></button>
+        <button id="mobileSettingsBtn" title="Settings" data-i18n-title="settings"><span class="svg-icon svg-icon-settings"></span> <span data-i18n="settings">Settings</span></button>
+        <button id="aboutBtn" title="About Memora" data-i18n-title="About Memora"><span class="svg-icon svg-icon-info"></span> <span data-i18n="About">About</span></button>
+        <button class="debug-only" id="mobileDebugLogBtn" title="Debug Log"><span class="svg-icon svg-icon-bug"></span> Debug Log</button>
+        </div>
+
+        <div class="sp-version"><span>Planner · v{{ APP_VERSION }}</span></div>
+    </div>
+
+
+    <main class="pl-main">
+        <!-- Folder tabs: across the top on a phone held upright, down the left
+             side in landscape and on wide windows (planner-app.js switches). -->
+        <div class="pl-tabs" id="plTabs" role="tablist" aria-label="Planner" data-i18n-aria="Planner">
+            <button type="button" class="pl-tab" role="tab" id="plTab-today" data-tab="today" aria-controls="plPanel-today"><span class="svg-icon svg-icon-sun"></span><span class="pl-tab-l" data-i18n="Today">Today</span></button>
+            <button type="button" class="pl-tab" role="tab" id="plTab-calendar" data-tab="calendar" aria-controls="plPanel-calendar"><span class="svg-icon svg-icon-calendar"></span><span class="pl-tab-l" data-i18n="Calendar">Calendar</span></button>
+            <button type="button" class="pl-tab" role="tab" id="plTab-todos" data-tab="todos" aria-controls="plPanel-todos"><span class="svg-icon svg-icon-list-check"></span><span class="pl-tab-l" data-i18n="To-dos">To-dos</span><span class="pl-ct" id="plTodoBadge" hidden></span></button>
+            <button type="button" class="pl-tab" role="tab" id="plTab-projects" data-tab="projects" aria-controls="plPanel-projects"><span class="svg-icon svg-icon-flag"></span><span class="pl-tab-l" data-i18n="Projects">Projects</span></button>
+            <button type="button" class="pl-tab" role="tab" id="plTab-habits" data-tab="habits" aria-controls="plPanel-habits"><span class="svg-icon svg-icon-repeat"></span><span class="pl-tab-l" data-i18n="Habits">Habits</span></button>
+        </div>
+
+        <div class="pl-panels">
+            <!-- Today: what is on now, what is due, today's habits, what is coming -->
+            <section class="pl-panel" role="tabpanel" id="plPanel-today" aria-labelledby="plTab-today" data-tab="today">
+                <div id="todayBody" class="pl-today"></div>
+            </section>
+
+            <section class="pl-panel panel panel--calendar" role="tabpanel" id="plPanel-calendar" aria-labelledby="plTab-calendar" data-tab="calendar">
+                <div class="panel-head">
+                    <div class="segmented" id="calRange" role="radiogroup" aria-label="Calendar range" data-i18n-aria="Calendar range">
+                        <button data-range="day" data-i18n="Day">Day</button>
+                        <button data-range="week" data-i18n="Week">Week</button>
+                        <button data-range="month" data-i18n="Month">Month</button>
+                        <button data-range="year" data-i18n="Year">Year</button>
+                    </div>
+                    <div class="spacer"></div>
+                    <button class="icon" id="calSettingsBtn" title="Calendar settings" data-i18n-title="Calendar settings"><span class="svg-icon svg-icon-settings"></span> </button>
+                    <button class="pl-add" id="calAddBtn" title="New event" data-i18n-title="New event"><span class="svg-icon svg-icon-plus"></span><span class="pl-add-l" data-i18n="Event">Event</span></button>
+                </div>
+                <div class="cal-nav">
+                    <button class="icon" id="calPrev" title="Previous" data-i18n-title="Previous"><span class="svg-icon svg-icon-chevron-left"></span> </button>
+                    <span class="cal-label" id="calLabel" aria-live="polite"></span>
+                    <button class="tiny" id="calToday" data-i18n="Today">Today</button>
+                    <button class="icon" id="calNext" title="Next" data-i18n-title="Next"><span class="svg-icon svg-icon-chevron-right"></span> </button>
+                </div>
+                <div class="pl-cal-split">
+                    <div class="panel-body" id="calBody"></div>
+                    <div class="pl-agenda" id="calAgenda" aria-live="polite"></div>
+                </div>
+            </section>
+
+            <section class="pl-panel panel panel--todos" role="tabpanel" id="plPanel-todos" aria-labelledby="plTab-todos" data-tab="todos">
+                <div class="panel-head">
+                    <div class="panel-title" data-i18n="To-dos">To-dos</div>
+                    <div class="spacer"></div>
+                    <span class="muted" id="todoCount"></span>
+                    <button class="tiny ghost" id="archiveBtn" title="Completed history" data-i18n-title="Completed history"><span class="svg-icon svg-icon-archive"></span> <span data-i18n="History">History</span></button>
+                </div>
+                <div class="panel-body">
+                    <div class="todo-addwrap">
+                        <div class="todo-add">
+                            <input id="todoInput" placeholder="Add a to-do" data-i18n-ph="Add a to-do" autocomplete="off" />
+                            <button class="primary" id="todoAddBtn" data-i18n="Add">Add</button>
+                        </div>
+                        <div class="pl-chips" id="todoDueChips" role="group" aria-label="Due" data-i18n-aria="Due"></div>
+                    </div>
+                    <ul class="todo-list" id="todoList"></ul>
+                </div>
+            </section>
+
+            <section class="pl-panel panel panel--projects panel--gantt" role="tabpanel" id="plPanel-projects" aria-labelledby="plTab-projects" data-tab="projects">
+                <div class="panel-head">
+                    <div class="panel-title" data-i18n="Projects">Projects</div>
+                    <div class="spacer"></div>
+                    <div class="segmented" id="projZoom" role="radiogroup" aria-label="Timeline zoom" data-i18n-aria="Timeline zoom">
+                        <button data-zoom="weeks" data-i18n="Weeks">Weeks</button>
+                        <button data-zoom="months" data-i18n="Months">Months</button>
+                    </div>
+                    <button class="pl-add" id="addProjectBtn" title="New project" data-i18n-title="New project"><span class="svg-icon svg-icon-plus"></span><span class="pl-add-l" data-i18n="New">New</span></button>
+                </div>
+                <div class="pl-proj-timeline" id="projTimeline"></div>
+                <div class="pl-proj-cards" id="projCards"></div>
+            </section>
+
+            <section class="pl-panel panel panel--habits" role="tabpanel" id="plPanel-habits" aria-labelledby="plTab-habits" data-tab="habits">
+                <div class="panel-head">
+                    <div class="panel-title" data-i18n="Habits">Habits</div>
+                    <span class="muted" data-i18n="This week">This week</span>
+                    <div class="spacer"></div>
+                    <button class="pl-add" id="addHabitBtn" title="New habit" data-i18n-title="New habit"><span class="svg-icon svg-icon-plus"></span><span class="pl-add-l" data-i18n="New">New</span></button>
+                </div>
+                <div class="habits-grid" id="habitsGrid"></div>
+                <p class="help pl-habit-hint" data-i18n="Tap a past day to tick it if you forgot. Dashed days are rest days.">Tap a past day to tick it if you forgot. Dashed days are rest days.</p>
+            </section>
+        </div>
+    </main>
+
+    <!-- ============ Dialogs ============ -->
+    <dialog id="eventDlg">
+        <form method="dialog" class="modal pl-ev">
+            <header><strong id="eventDlgTitle">New event</strong><button class="ghost icon" value="cancel" formnovalidate>✕</button></header>
+            <div class="body">
+                <input id="evTitle" class="pl-ev-title" required placeholder="What’s happening?" data-i18n-ph="What’s happening?" aria-label="Title" data-i18n-aria="Title" autocomplete="off" />
+                <div class="field"><span class="pl-lbl" id="evDayLbl" data-i18n="Day">Day</span>
+                    <div class="pl-chips" id="evDayChips" role="group" aria-labelledby="evDayLbl">
+                        <button type="button" class="pl-chip" data-day="0" data-i18n="Today">Today</button>
+                        <button type="button" class="pl-chip" data-day="1" data-i18n="Tomorrow">Tomorrow</button>
+                        <span class="pl-chip pl-date-chip" id="evDateChip"><span class="svg-icon svg-icon-calendar"></span><span id="evDateLabel"></span><input id="evDate" type="date" required aria-label="Date" data-i18n-aria="Date" /></span>
+                    </div>
+                </div>
+                <label class="pl-switch"><span data-i18n="All day">All day</span><input type="checkbox" id="evAllDay" role="switch" /></label>
+                <div class="field" id="evTimes"><span class="pl-lbl" data-i18n="Time">Time</span>
+                    <div class="pl-time"><input id="evStart" type="time" value="09:00" aria-label="Starts" data-i18n-aria="Starts" /><span class="pl-ends" id="evEndsLabel"></span></div>
+                    <div class="pl-chips" id="evDurChips" role="group" aria-label="How long" data-i18n-aria="How long"></div>
+                    <div class="pl-endrow" id="evEndRow" hidden><label for="evEnd" data-i18n="Ends">Ends</label><input id="evEnd" type="time" value="10:00" /></div>
+                </div>
+                <div class="field"><span class="pl-lbl" id="evRepeatLbl" data-i18n="Repeat">Repeat</span>
+                    <div class="pl-chips" id="evRepeatChips" role="group" aria-labelledby="evRepeatLbl"></div>
+                    <div class="pl-until" id="evUntilRow" hidden><span id="evRepeatSummary"></span><label for="evUntil" data-i18n="until">until</label><input id="evUntil" type="date" /><button type="button" class="tiny ghost" id="evUntilClear" data-i18n="never ends">never ends</button></div>
+                </div>
+                <div class="field"><span class="pl-lbl" id="evRemindLbl" data-i18n="Remind me">Remind me</span>
+                    <div class="pl-chips" id="evRemindChips" role="group" aria-labelledby="evRemindLbl"></div>
+                    <select id="evRemind" hidden aria-hidden="true" tabindex="-1">
+                        <option value="0">No reminder</option>
+                        <option value="at">At the time of the event</option>
+                        <option value="5">5 minutes before</option>
+                        <option value="10">10 minutes before</option>
+                        <option value="15">15 minutes before</option>
+                        <option value="30">30 minutes before</option>
+                        <option value="60">1 hour before</option>
+                        <option value="1440">1 day before</option>
+                    </select>
+                    <p id="evReminderStatus" class="help" role="status"></p>
+                    <button type="button" id="evReminderEnable" hidden></button>
+                </div>
+                <div class="field"><span class="pl-lbl" data-i18n="Colour">Colour</span><div class="swatches" id="evSwatches"></div></div>
+                <details class="pl-more" id="evMore"><summary data-i18n="Notes, from a habit">Notes, from a habit</summary>
+                    <div class="field"><label for="evDesc" data-i18n="Notes">Notes</label><textarea id="evDesc" rows="2"></textarea></div>
+                    <div class="field"><label for="evHabit" data-i18n="From a habit">From a habit</label><select id="evHabit"><option value="">— none —</option></select></div>
+                </details>
+                <input type="hidden" id="evId" />
+            </div>
+            <footer>
+                <button class="ghost" id="evDeleteBtn" value="delete" formnovalidate style="margin-right:auto;display:none;color:var(--danger)" data-i18n="Delete">Delete</button>
+                <button class="ghost" value="cancel" formnovalidate data-i18n="cancel">Cancel</button>
+                <button class="primary" id="evSaveBtn" value="save" data-i18n="Save">Save</button>
+            </footer>
+        </form>
+    </dialog>
+
+    <dialog id="calSettingsDlg">
+        <form method="dialog" class="modal">
+            <header><strong>Calendar settings</strong><button class="ghost icon" value="cancel" formnovalidate>✕</button></header>
+            <div class="body">
+                <p class="help">Set your visible day window. Hours outside it are hidden in day &amp; week view, so the schedule fills the space instead of leaving empty hours while you sleep.</p>
+                <div class="row">
+                    <div class="field"><label>Day begins</label><select id="setDayStart"></select></div>
+                    <div class="field"><label>Day ends</label><select id="setDayEnd"></select></div>
+                </div>
+            </div>
+            <footer>
+                <button class="ghost" value="cancel" formnovalidate data-i18n="cancel">Cancel</button>
+                <button class="primary" value="save">Save</button>
+            </footer>
+        </form>
+    </dialog>
+
+    <dialog id="archiveDlg">
+        <form method="dialog" class="modal modal-wide">
+            <header><strong><span class="svg-icon svg-icon-archive"></span> Completed todos</strong><button class="ghost icon" value="cancel" formnovalidate>✕</button></header>
+            <div class="body">
+                <p class="help">Completed tasks move here a day after you finish them, keeping the live list tidy. Pick a day to see what you finished.</p>
+                <div class="arch-toolbar">
+                    <button type="button" class="icon" id="archCalToggle" title="Collapse calendar"><span class="svg-icon svg-icon-chevron-down"></span> </button>
+                    <div class="segmented" id="archRange">
+                        <button type="button" data-range="month">Month</button>
+                        <button type="button" data-range="year">Year</button>
+                    </div>
+                    <button type="button" class="icon" id="archPrev" title="Previous"><span class="svg-icon svg-icon-chevron-left"></span> </button>
+                    <button type="button" class="tiny" id="archToday">Today</button>
+                    <span class="cal-label" id="archLabel"></span>
+                    <div class="spacer"></div>
+                    <button type="button" class="icon" id="archNext" title="Next"><span class="svg-icon svg-icon-chevron-right"></span> </button>
+                </div>
+                <div id="archCal" class="arch-cal"></div>
+                <div class="arch-day">
+                    <div class="arch-day-title" id="archDayTitle">Select a day</div>
+                    <ul class="arch-list" id="archList"></ul>
+                </div>
+            </div>
+        </form>
+    </dialog>
+
+    <dialog id="projectDlg">
+        <form method="dialog" class="modal">
+            <header><strong>New project</strong><button class="ghost icon" value="cancel" formnovalidate>✕</button></header>
+            <div class="body">
+                <div class="field"><label>Project name</label><input id="pjName" required placeholder="e.g. Launch website" /></div>
+                <div class="row">
+                    <div class="field"><label>Start</label><input id="pjStart" type="date" required /></div>
+                    <div class="field"><label>Target end</label><input id="pjEnd" type="date" required /></div>
+                </div>
+                <div class="field"><label>Color</label><div class="swatches" id="pjSwatches"></div></div>
+                <p class="help" data-i18n="Add milestones on the project’s card. The next one of each project shows in your to-dos.">Add milestones on the project’s card. The next one of each project shows in your to-dos.</p>
+            </div>
+            <footer>
+                <button class="ghost" value="cancel" formnovalidate data-i18n="cancel">Cancel</button>
+                <button class="primary" value="save">Create</button>
+            </footer>
+        </form>
+    </dialog>
+
+
+    <dialog id="habitDlg">
+        <form method="dialog" class="modal">
+            <header><strong id="habitDlgTitle">New habit</strong><button class="ghost icon" value="cancel" formnovalidate>✕</button></header>
+            <div class="body">
+                <div class="field"><label>Habit name <span class="muted">(tip: start with an emoji, e.g. 🏋️)</span></label><input id="hbName" required placeholder="e.g. 🏋️ Go to the gym" /></div>
+                <div class="field">
+                    <label>How do you record it?</label>
+                    <div class="type-pick" id="hbType">
+                        <button type="button" data-type="check"><span style="font-size:20px"><span class="svg-icon svg-icon-check"></span> </span><span>Tick</span></button>
+                        <button type="button" data-type="count"><span style="font-size:20px"><span class="svg-icon svg-icon-hash"></span> </span><span>Count</span></button>
+                        <button type="button" data-type="timer"><span style="font-size:20px"><span class="svg-icon svg-icon-timer"></span> </span><span>Timer</span></button>
+                    </div>
+                    <p class="help" id="hbTypeHelp">Tick: one tap to mark done. Count: tap multiple times a day. Timer: start/stop to record minutes (e.g. gym).</p>
+                </div>
+                <div class="field">
+                    <label>Which days of the week?</label>
+                    <div class="daypick" id="hbDays"></div>
+                </div>
+                <div class="field"><label>Color</label><div class="swatches" id="hbSwatches"></div></div>
+            </div>
+            <footer>
+                <button class="ghost" value="cancel" formnovalidate data-i18n="cancel">Cancel</button>
+                <button class="primary" id="hbSaveBtn" value="save">Create habit</button>
+            </footer>
+        </form>
+    </dialog>
+
+    <!-- Settings dialog — shared collapsible style (matches memo/finance). Only
+         the sections that apply to the planner: Server Sync + sync password. -->
+    <dialog id="settingsDlg">
+        <div class="modal">
+            <header>
+                <strong><span class="svg-icon svg-icon-settings"></span> <span data-i18n="settings">Settings</span></strong>
+            </header>
+            <div class="content" style="max-height:70vh;overflow-y:auto">
+                <div class="settings-section"><label for="languageSelect" data-i18n="language">Language</label><select id="languageSelect"></select></div>
+                <!-- Server Sync Section -->
+                <div id="serverSyncSection" class="settings-section">
+                    <h3><span class="svg-icon svg-icon-refresh"></span> Server Sync</h3>
+                    <p class="muted">Connect to a remote server to sync your planner across devices.</p>
+                    <div class="form-row">
+                        <label for="serverUrlInput">Server URL:</label>
+                        <input type="text" id="serverUrlInput" placeholder="https://example.com or http://192.168.1.100:5050"
+                               style="width:100%;padding:8px;margin-top:4px;" />
+                        <p id="serverTransportWarning" class="transport-risk-warning" role="alert" hidden>
+                            HTTP is not encrypted. Another device on this network may observe or modify synced planner data and passwords. Use HTTPS whenever possible; use HTTP only for a server and network you trust.
+                        </p>
+                    </div>
+                    <div id="serverUrlStatus" style="font-size:12px;margin-top:6px;"></div>
+                    <div class="form-row" style="margin-top:12px;">
+                        <label for="syncPasswordInput">Sync password (optional):</label>
+                        <input type="password" id="syncPasswordInput" placeholder="Match the server's password; blank = none"
+                               style="width:100%;padding:8px;margin-top:4px;" />
+                        <p class="muted" style="font-size:11px;margin-top:4px;">Required only if the server is configured with a password. Use HTTPS so it stays private in transit.</p>
+                    </div>
+                    <div id="syncPasswordStatus" style="font-size:12px;margin-top:8px;"></div>
+                </div>
+
+                <hr style="margin: 5px 0; border: none; border-top: 1px solid var(--border);">
+
+                <!-- Data Backup — identical to memo/finance, wired by the shared
+                     memo-backup-ui.js. Backs up the whole DB (incl. this planner). -->
+                <div class="settings-section">
+                    <h3><span class="svg-icon svg-icon-save"></span> Data Backup</h3>
+                    <p class="muted">Export or import your whole database (memos, finance and planner) including images and attachments. A backup always covers every page, whichever one you're on.</p>
+
+                    <div class="form-row export-scope" style="margin-top:10px;">
+                        <div class="muted" style="font-size:12px;margin-bottom:6px;">Include:</div>
+                        <label style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:13px;cursor:pointer;"><input type="checkbox" id="exportInclMemos" checked style="width:auto;"> Memos</label>
+                        <label style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:13px;cursor:pointer;"><input type="checkbox" id="exportInclFinance" checked style="width:auto;"> <span data-i18n="Finance">Finance</span></label>
+                        <label style="display:inline-flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;"><input type="checkbox" id="exportInclPlanner" checked style="width:auto;"> <span data-i18n="Planner">Planner</span></label>
+                        <div class="muted" style="font-size:12px;margin:10px 0 4px;">Date range (optional):</div>
+                        <div class="inline" style="gap:8px;flex-wrap:wrap;align-items:center;">
+                            <input type="date" id="exportRangeFrom" aria-label="From date" style="padding:6px;" />
+                            <span class="muted">→</span>
+                            <input type="date" id="exportRangeTo" aria-label="To date" style="padding:6px;" />
+                        </div>
+                    </div>
+
+                    <div class="form-row" style="margin-top:12px;">
+                        <button id="exportDataBtn" class="primary"><span class="svg-icon svg-icon-archive"></span> Export Data</button>
+                        <p class="muted" style="font-size:11px;margin-top:4px;" data-i18n="Saves a password-protected backup (.memora) of your entries, images and assistant chats. On the phone it opens the share sheet. Very large libraries are split into parts.">
+                            Saves a password-protected backup (.memora) of your entries, images and assistant chats. On the phone it opens the share sheet. Very large libraries are split into parts.
+                        </p>
+                    </div>
+
+                    <div class="form-row" style="margin-top:16px;">
+                        <label for="importDataInput" class="primary import-label">
+                            <span class="svg-icon svg-icon-download"></span> Import Data
+                        </label>
+                        <input type="file" id="importDataInput" accept=".memora,.zip,application/zip,application/octet-stream" multiple style="display:none;" />
+                        <p class="muted" style="font-size:11px;margin-top:4px;" data-i18n="Choose a backup (.memora, or an older .zip) to restore your data.">
+                            Choose a backup (.memora, or an older .zip) to restore your data.
+                        </p>
+                    </div>
+
+                    <!-- The phone's own database (Android app only; memo-storage-ui.js shows it) -->
+                    <div id="phoneDbSection" class="form-row" style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px;" hidden>
+                        <p style="font-size:13px;font-weight:600;margin:0 0 4px;" data-i18n="Phone database">Phone database</p>
+                        <p class="muted" style="font-size:12px;margin:0 0 8px;" id="phoneDbState" data-i18n="Encrypted on this phone.">Encrypted on this phone.</p>
+                        <button id="phoneDbRecoveryBtn" class="secondary" type="button"><span class="svg-icon svg-icon-key"></span> <span id="phoneDbRecoveryLabel" data-i18n="Set recovery password">Set recovery password</span></button>
+                        <p class="muted" style="font-size:11px;margin-top:4px;" data-i18n="If Android restores Memora onto a new phone from its backup, this password opens your entries there. Without it, they come back from your server or a backup.">
+                            If Android restores Memora onto a new phone from its backup, this password opens your entries there. Without it, they come back from your server or a backup.
+                        </p>
+                    </div>
+
+                    <div id="importExportStatus" style="margin-top:12px;padding:8px;border-radius:6px;display:none;"></div>
+                </div>
+            </div>
+            <footer class="inline" style="justify-content:flex-end;gap:8px;padding:12px 16px">
+                <button class="primary" id="saveServerUrlBtn">Save &amp; connect</button>
+            </footer>
+        </div>
+    </dialog>
+
+    <!-- Debug log dialog (memo-debug.js is standalone) -->
+    <dialog id="debugLogDlg">
+        <div class="modal">
+            <header style="display:flex;align-items:center;gap:10px;justify-content:space-between">
+                <strong><span class="svg-icon svg-icon-bug"></span> Debug Log</strong>
+                <div class="inline" style="gap:8px">
+                    <button class="ghost" id="clearDebugLog">Clear</button>
+                    <button class="ghost" id="copyDebugLog">Copy</button>
+                </div>
+            </header>
+            <div class="content">
+                <pre id="debugLogContent" style="background:var(--input-bg);padding:12px;border-radius:6px;font-size:11px;line-height:1.4;max-height:500px;overflow-y:auto;font-family:monospace;white-space:pre-wrap;word-break:break-all;"></pre>
+            </div>
+        </div>
+    </dialog>

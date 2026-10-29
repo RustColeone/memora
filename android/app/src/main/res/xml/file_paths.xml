@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Native sharing exposes only this private, disposable cache subtree. -->
+    <cache-path name="memora_shared_files" path="memora-share/" />
+    <!-- Outgoing exports (password-protected backups, database files) only. -->
+    <cache-path name="memora_outgoing" path="memora-out/" />
+    <!-- Hold-to-camera: Capacitor's file chooser hands the camera app a temp
+         file in the app's own external Pictures folder; without this root the
+         capture silently fell back to the photo picker. -->
+    <external-files-path name="memora_camera_capture" path="Pictures/" />
+</paths>

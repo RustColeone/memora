@@ -1,0 +1,103 @@
+# Builds the four downloads for a tag like v0.0.17 and attaches them to a
+# GitHub release:
+#   memora-server-<v>.zip            the server alone (Python or Docker), for a home server
+#   Memora-<v>-win-x64.zip           the app for Windows, with the built-in server
+#   Memora-<v>-mac-arm64.zip         the app for macOS (Apple silicon), with the built-in server
+#   Memora-<v>-linux-x86_64.AppImage the app for Linux (also as .tar.gz), with the built-in server
+# Run it by hand (Actions → Release → Run workflow) to build without publishing.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-14, ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: The tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          v=$(node -p "require('./package.json').version"); d=$(node -p "require('./desktop/package.json').version")
+          echo "tag $GITHUB_REF_NAME, app $v, desktop $d"
+          test "v$v" = "$GITHUB_REF_NAME" && test "$v" = "$d"
+      - name: Build the web app (src/ → www/)
+        run: npm ci && npm run build
+      - name: Package the sync server
+        run: |
+          pip install -r requirements.txt pyinstaller pillow pypdf openai anthropic google-generativeai
+          npm run build:server
+      - name: Smoke-test the packaged server
+        run: node build_tools/smoke-server.cjs
+      - name: Package the desktop app
+        working-directory: desktop
+        run: npm ci && npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.os }}
+          if-no-files-found: error
+          path: |
+            desktop/dist/*.zip
+            desktop/dist/*.AppImage
+            desktop/dist/*.tar.gz
+
+  server:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and smoke-test the Docker image
+        run: |
+          docker build -t memora-server .
+          docker run -d --name memora -p 5050:5050 -e MEMO_SYNC_PASSWORD=ci-check-password memora-server
+          for i in $(seq 30); do curl -fs http://127.0.0.1:5050/api/config && break; sleep 2; done
+          curl -fs http://127.0.0.1:5050/api/config
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5050/api/memos)" = 401
+          docker logs memora
+      - name: Package the server download
+        run: |
+          v=$(node -p "require('./package.json').version")
+          d=out/memora-server-$v
+          mkdir -p $d
+          cp -r backend src package.json requirements.txt Dockerfile .dockerignore compose.yaml LICENSE NOTICE.md SERVER.md $d/
+          find out -name __pycache__ -prune -exec rm -rf {} +
+          (cd out && zip -qr memora-server-$v.zip memora-server-$v)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server
+          if-no-files-found: error
+          path: out/*.zip
+
+  release:
+    needs: [desktop, server]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la assets
+          gh release create "$GITHUB_REF_NAME" assets/* --title "Memora ${GITHUB_REF_NAME#v}" --notes-file RELEASE_NOTES.md

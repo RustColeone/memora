@@ -1,0 +1,44 @@
+{
+  "name": "memora",
+  "version": "0.0.17",
+  "description": "Memora – self-hosted memo/finance/planner personal database app (Flask server + Capacitor client)",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "build": "node build_tools/build.js",
+    "sync-reader": "node build_tools/sync-reader.js",
+    "prepare:web": "node build_tools/build.js",
+    "pretest": "node build_tools/build.js",
+    "test": "playwright test",
+    "test:state": "node tests/state-db-recovery.test.cjs",
+    "verify:android-artifact": "node build_tools/verify-android-artifact.cjs",
+    "test:backend": "python tests/run_all.py --backend",
+    "test:browser": "python tests/run_all.py --browser",
+    "test:all": "python tests/run_all.py",
+    "precap:sync": "node build_tools/build.js",
+    "cap:sync": "cap sync",
+    "cap:open:android": "cap open android",
+    "cap:add:android": "cap add android",
+    "cap:doctor": "cap doctor",
+    "build:server": "node build_tools/build-server.cjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0",
+    "@capacitor-community/sqlite": "^8.1.1",
+    "@capacitor/android": "^8.1.0",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/camera": "^8.2.0",
+    "@capacitor/core": "^8.1.0",
+    "@capacitor/filesystem": "^8.1.2",
+    "gifuct-js": "^2.1.2",
+    "jszip": "3.10.1",
+    "sql.js": "^1.10.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.1.0",
+    "@playwright/test": "^1.61.0",
+    "esbuild": "^0.28.1",
+    "fs-extra": "^11.2.0",
+    "sharp": "^0.35.3"
+  }
+}

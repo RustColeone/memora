@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#131110">
+  <title>Memora — WebView update required</title>
+  <script>
+    // ES5 only: this page must run even when Memora cannot parse.
+    (function () {
+      var lang = String(navigator.language || 'en').slice(0, 2).toLowerCase();
+      var copy = {
+        en: ['Memora needs an update to Android System WebView', 'Your phone’s web engine is too old to run Memora. Update “Android System WebView” (or Google Chrome on older Android versions) from the Play Store, then reopen Memora. Your local records and drafts are safe and unchanged.', 'Open Play Store'],
+        es: ['Memora necesita actualizar Android System WebView', 'El motor web de tu teléfono es demasiado antiguo para Memora. Actualiza «Android System WebView» (o Google Chrome en versiones antiguas de Android) desde Play Store y vuelve a abrir Memora. Tu biblioteca está a salvo y sin cambios.', 'Abrir Play Store'],
+        fr: ['Memora nécessite une mise à jour d’Android System WebView', 'Le moteur web de votre téléphone est trop ancien pour Memora. Mettez à jour « Android System WebView » (ou Google Chrome sur les anciennes versions d’Android) depuis le Play Store, puis rouvrez Memora. Votre bibliothèque est intacte.', 'Ouvrir le Play Store'],
+        de: ['Memora benötigt ein Update von Android System WebView', 'Die Web-Engine deines Telefons ist zu alt für Memora. Aktualisiere „Android System WebView“ (bei älteren Android-Versionen Google Chrome) im Play Store und öffne Memora erneut. Deine Mediathek ist sicher und unverändert.', 'Play Store öffnen'],
+        pt: ['O Memora precisa de uma atualização do Android System WebView', 'O mecanismo web do seu telefone é antigo demais para o Memora. Atualize o “Android System WebView” (ou o Google Chrome em versões antigas do Android) na Play Store e abra o Memora de novo. Sua biblioteca está segura e intacta.', 'Abrir a Play Store'],
+        nl: ['Memora heeft een update van Android System WebView nodig', 'De webengine van je telefoon is te oud voor Memora. Werk „Android System WebView” (of Google Chrome op oudere Android-versies) bij via de Play Store en open Memora opnieuw. Je bibliotheek is veilig en ongewijzigd.', 'Play Store openen'],
+        zh: ['Memora 需要更新 Android System WebView', '手机的网页引擎版本过旧，无法运行 Memora。请在 Play 商店更新“Android System WebView”（较旧的 Android 版本请更新 Google Chrome），然后重新打开 Memora。你的图库安全无损。', '打开 Play 商店'],
+        ja: ['Memora には Android System WebView の更新が必要です', 'この端末の Web エンジンが古いため Memora を実行できません。Play ストアで「Android System WebView」（古い Android では Google Chrome）を更新してから Memora を開き直してください。ライブラリはそのまま安全です。', 'Play ストアを開く'],
+      }[lang] || null;
+      copy = copy || ['Memora needs an update to Android System WebView', 'Your phone’s web engine is too old to run Memora. Update “Android System WebView” (or Google Chrome on older Android versions) from the Play Store, then reopen Memora. Your local records and drafts are safe and unchanged.', 'Open Play Store'];
+      document.addEventListener('DOMContentLoaded', function () {
+        document.body.innerHTML = '';
+        document.body.style.cssText = 'margin:0;background:#131110;color:#e5e7eb;font-family:sans-serif;';
+        var box = document.createElement('div');
+        box.style.cssText = 'padding:72px 28px;max-width:520px;margin:0 auto;line-height:1.55;';
+        var title = document.createElement('h1');
+        title.style.cssText = 'font-size:20px;margin:0 0 14px;';
+        title.textContent = copy[0];
+        var body = document.createElement('p');
+        body.style.cssText = 'font-size:15px;color:#c4c4c4;margin:0 0 24px;';
+        body.textContent = copy[1];
+        var link = document.createElement('a');
+        link.href = 'https://play.google.com/store/apps/details?id=com.google.android.webview';
+        link.style.cssText = 'display:inline-block;padding:12px 20px;border-radius:12px;background:#f59e0b;color:#1c0700;font-weight:700;text-decoration:none;';
+        link.textContent = copy[2];
+        box.appendChild(title); box.appendChild(body); box.appendChild(link);
+        document.body.appendChild(box);
+      });
+    })();
+
+  </script>
+</head>
+<body style="margin:0;background:#131110;color:#e5e7eb;font-family:sans-serif;">
+  <noscript>Memora needs JavaScript enabled and an updated Android System WebView.</noscript>
+</body>
+</html>

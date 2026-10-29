@@ -1,0 +1,27 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt pillow pypdf
+      - run: npm ci
+      - run: npx playwright install --with-deps msedge
+      - run: npm run build
+      - name: Storage recovery checks
+        run: npm run test:state
+      - name: Server suites
+        run: python tests/run_all.py --backend
+      - name: Browser suite
+        run: npx playwright test --workers=2

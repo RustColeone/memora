@@ -1,0 +1,8 @@
+*
+!requirements.txt
+!package.json
+!LICENSE
+!NOTICE.md
+!backend/
+!src/
+**/__pycache__

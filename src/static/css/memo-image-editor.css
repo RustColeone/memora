@@ -1,0 +1,51 @@
+.mie-dialog [hidden]{display:none!important}
+.mie-dialog{width:min(980px,calc(100vw - 24px));max-width:none;height:min(820px,94dvh);max-height:94dvh;padding:0;overflow:hidden}
+.mie-dialog .mie-modal{width:100%;height:100%;max-height:none;display:flex;flex-direction:column;overflow:hidden}
+.mie-dialog header{flex:none;display:flex;align-items:center;gap:8px;padding:12px 16px}
+.mie-dialog header button{min-width:44px;min-height:44px}.mie-dialog .modal-close{position:static}
+.mie-workspace{display:grid;grid-template-columns:minmax(0,1fr) 220px;flex:1;min-height:0}
+.mie-stage{display:flex;align-items:center;justify-content:center;min-height:0;min-width:0;background:var(--bg);overflow:hidden;padding:12px}
+#mieEmpty{text-align:center;max-width:340px;padding:16px}#mieEmpty p{font-size:13px;color:var(--muted)}.mie-sources{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+#mieImage{position:relative;flex:none;touch-action:none;overflow:hidden}#mieCanvas{width:100%;height:100%;display:block}
+#mieCrop{position:absolute;border:2px solid var(--accent);box-shadow:0 0 0 100vmax #0008;min-width:2px;min-height:2px;cursor:crosshair;background:linear-gradient(to right,transparent 32.8%,#ffffff50 33%,transparent 33.3%,transparent 66%,#ffffff50 66.3%,transparent 66.6%),linear-gradient(to bottom,transparent 32.8%,#ffffff50 33%,transparent 33.3%,transparent 66%,#ffffff50 66.3%,transparent 66.6%)}
+#mieCrop:focus-visible{outline:2px solid var(--text);outline-offset:3px}
+.mie-controls{display:flex;flex-direction:column;min-height:0;padding:14px;overflow:hidden;border-left:1px solid var(--border);background:var(--card)}.mie-controls-scroll{overflow-y:auto;min-height:0}.mie-tool-actions{flex:none}.mie-tool-tabs{display:flex;gap:8px;margin-bottom:14px}.mie-tool-tabs button{flex:1}.mie-tool-tabs [aria-pressed=true]{background:var(--accent);color:var(--primary-dark)}
+.mie-geometry{display:grid;grid-template-columns:1fr 1fr;gap:8px}.mie-controls button{min-height:44px;font-size:12px;padding:8px}.mie-controls label{display:block;margin:12px 0;font-size:12px}.mie-controls input[type=range]{width:100%;accent-color:var(--accent);min-height:32px}.mie-controls select{width:100%;margin-top:8px}.mie-controls output{float:right;font-variant-numeric:tabular-nums}.mie-controls p{font-size:12px}.mie-tool-actions{display:flex;gap:8px;margin-top:14px}.mie-tool-actions button{flex:1}
+#mieStatus{flex:none;margin:0;padding:8px 16px;min-height:32px;font-size:12px;color:var(--muted)}#mieStatus.mie-error{color:var(--danger)}.mie-footer{flex:none;gap:8px;border-top:1px solid var(--border);padding:12px 16px!important}.mie-footer button{min-height:44px;font-size:12px}#mieOriginal[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
+@media(max-width:600px) and (min-height:501px){.mie-dialog{width:calc(100vw - 12px);height:94dvh}.mie-workspace{display:flex;flex-direction:column}.mie-stage{flex:1;min-height:120px}.mie-controls{border-left:0;border-top:1px solid var(--border);max-height:34dvh;padding:10px 12px}.mie-tool-tabs{margin-bottom:8px}.mie-geometry{grid-template-columns:repeat(4,1fr);gap:5px}.mie-controls button{font-size:11px;padding:6px}.mie-controls label{margin:5px 0}.mie-controls input[type=range]{min-height:24px}.mie-controls p{margin:5px 0}.mie-footer{padding:10px!important;gap:6px}.mie-footer button{padding:8px;font-size:11px}}
+@media(max-height:500px){.mie-dialog{height:96dvh;max-height:96dvh;width:calc(100vw - 16px)}.mie-workspace{grid-template-columns:minmax(0,1fr) 210px}.mie-dialog header{padding:3px 12px}.mie-dialog .mie-footer{padding:5px 12px!important}#mieStatus{padding:3px 12px;min-height:22px}.mie-controls{padding:8px}.mie-tool-tabs{margin-bottom:8px}}
+
+#mieDraftStatus{flex:none;margin:0;padding:0 16px 5px;font-size:11px;min-height:0}#mieDraftStatus:empty{display:none}#mieRecovery{text-align:center;max-width:360px;padding:16px}#mieRecovery p{font-size:13px;color:var(--muted)}#mieLeaveDlg .actions{flex-wrap:wrap}#mieLeaveStatus{color:var(--danger)}
+.mie-handle{position:absolute;width:44px;height:44px;z-index:1;touch-action:none}
+.mie-handle::after{content:"";position:absolute;width:12px;height:12px;background:var(--accent);border:2px solid white;box-shadow:0 1px 4px #0008;border-radius:3px}
+.mie-handle[data-corner=nw]{left:-2px;top:-2px;cursor:nwse-resize}.mie-handle[data-corner=ne]{right:-2px;top:-2px;cursor:nesw-resize}
+.mie-handle[data-corner=sw]{left:-2px;bottom:-2px;cursor:nesw-resize}.mie-handle[data-corner=se]{right:-2px;bottom:-2px;cursor:nwse-resize}
+.mie-handle[data-corner=nw]::after{left:0;top:0}.mie-handle[data-corner=ne]::after{right:0;top:0}.mie-handle[data-corner=sw]::after{left:0;bottom:0}.mie-handle[data-corner=se]::after{right:0;bottom:0}
+#mieCrop{cursor:move;touch-action:none}
+
+/* Steps (history): look at an earlier step, remove one, or edit on from there */
+.mie-dialog header{position:relative}.mie-steps-wrap{position:static}#mieSteps{display:inline-flex;align-items:center;gap:4px;padding:6px 10px}.mie-step-count{font-size:12px;font-variant-numeric:tabular-nums;min-width:14px}
+.mie-steps-menu{position:absolute;right:12px;top:calc(100% - 4px);z-index:6;width:min(280px,calc(100vw - 32px));max-height:min(60dvh,420px);overflow:auto;padding:6px;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 10px 30px rgb(0 0 0 / .35)}
+.mie-step{display:flex;align-items:center;gap:2px}.mie-step-pick{flex:1;min-width:0;display:flex;align-items:center;gap:10px;min-height:40px;padding:6px 8px;border:0;background:transparent;color:var(--text);text-align:left;border-radius:8px}
+.mie-step-pick:hover{background:var(--button-bg)}.mie-step.current .mie-step-pick{color:var(--accent);font-weight:700}.mie-step-n{width:20px;flex:none;color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}.mie-step-l{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mie-step-remove{flex:none;min-width:40px;min-height:40px;padding:0;border:0;color:var(--muted)}.mie-step-remove:hover{color:var(--danger)}
+.mie-viewing{flex:none;display:flex;align-items:center;gap:10px;padding:6px 16px;font-size:12px;background:color-mix(in srgb,var(--accent) 14%,transparent);border-top:1px solid var(--border)}.mie-viewing span{flex:1;min-width:0}.mie-viewing button{flex:none;min-height:36px;font-size:12px;padding:6px 10px}
+
+/* Adjust: looks and six dials */
+.mie-looks{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px}.mie-controls .mie-look{flex:1 1 auto;min-height:34px;padding:4px 10px;border-radius:999px}.mie-look[aria-pressed=true]{background:var(--accent);color:var(--primary-dark);border-color:var(--accent)}
+
+/* Curves: All / R / G / B with a preview each, and the pad */
+.mie-channels{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}.mie-controls .mie-ch{display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 2px;min-height:0}.mie-ch canvas{width:34px;height:34px;border-radius:6px}
+.mie-ch[aria-checked=true]{border-color:var(--accent);color:var(--accent)}.mie-ch.edited span::after{content:" •";color:var(--accent)}
+.mie-pad-wrap{padding:12px;margin:-6px auto 0;max-width:284px;touch-action:none;cursor:crosshair}.mie-curve-pad{display:block;width:100%;aspect-ratio:1;height:auto;border-radius:3px;border:1px solid var(--border);pointer-events:none}
+#mieCurvesReset{width:100%;margin-top:4px}
+@media(max-width:600px) and (min-height:501px){.mie-curves-mode .mie-controls{max-height:54dvh}.mie-pad-wrap{max-width:min(100%,calc(34dvh + 24px))}.mie-channels{gap:4px;margin-bottom:6px}.mie-looks{gap:4px}.mie-controls .mie-look{min-height:30px;padding:3px 8px}}
+@media(max-height:500px){.mie-curves-mode .mie-workspace{grid-template-columns:minmax(0,1fr) 250px}.mie-pad-wrap{max-width:min(100%,calc(46dvh + 24px))}}
+
+/* Curves needs room: a wider side panel on larger screens */
+@media(min-width:601px) and (min-height:501px){.mie-curves-mode .mie-workspace{grid-template-columns:minmax(0,1fr) 300px}}
+/* Phones upright: each dial on one row (name, slider, value) so all six fit */
+@media(max-width:600px) and (min-height:501px){
+  #mieAdjustControls label{display:grid;grid-template-columns:76px minmax(0,1fr) 48px;align-items:center;gap:8px;margin:2px 0}
+  #mieAdjustControls label output{float:none;order:3;text-align:right}#mieAdjustControls label input{order:2;min-height:30px}#mieAdjustControls label span{order:1}
+}

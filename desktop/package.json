@@ -1,0 +1,49 @@
+{
+  "name": "memora-desktop",
+  "version": "0.0.17",
+  "description": "Memora for Windows, macOS and Linux: the app, local and private, with an optional built-in sync server. Bring your own AI key.",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "author": "The Memora authors",
+  "homepage": "https://github.com/RustColeone/memora",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "node ../build_tools/build.js && electron .",
+    "start:fast": "electron .",
+    "rebuild": "electron-rebuild -f -w better-sqlite3-multiple-ciphers",
+    "dist": "electron-builder --publish never"
+  },
+  "dependencies": {
+    "better-sqlite3-multiple-ciphers": "13.0.3",
+    "qrcode": "1.5.4"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "4.0.1",
+    "electron": "44.5.1",
+    "electron-builder": "26.17.0"
+  },
+  "build": {
+    "appId": "com.laplacengan.memora.desktop",
+    "productName": "Memora",
+    "artifactName": "Memora-${version}-${os}-${arch}.${ext}",
+    "directories": { "output": "dist" },
+    "files": ["main.cjs", "preload.cjs", "package.json"],
+    "extraResources": [
+      { "from": "../www", "to": "www" },
+      { "from": "../dist-server/memora-server", "to": "memora-server" },
+      { "from": "../LICENSE", "to": "LICENSE" }
+    ],
+    "icon": "../src/static/icons/icon-512.png",
+    "win": { "target": [{ "target": "zip", "arch": ["x64"] }] },
+    "mac": {
+      "target": [{ "target": "zip", "arch": ["arm64"] }],
+      "category": "public.app-category.productivity",
+      "identity": "-"
+    },
+    "linux": {
+      "target": [{ "target": "AppImage", "arch": ["x64"] }, { "target": "tar.gz", "arch": ["x64"] }],
+      "category": "Office",
+      "maintainer": "The Memora authors"
+    }
+  }
+}
