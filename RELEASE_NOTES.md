@@ -26,3 +26,4 @@ How Memora is built, as diagrams you can tap through on a phone: https://rustcol
 - Purchases saved without a date show the local day, not the next day in the evening.
 - Mods: drop a folder into the mods folder and turn it on in Settings → Mods (see `docs/MODS.md`).
 - About links to this source code (AGPL-3.0).
+- Settings → Server Sync shows where to get the free server you can host yourself.

@@ -1,6 +1,6 @@
 {
   "name": "memora-desktop",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "description": "Memora for Windows, macOS and Linux: the app, local and private, with an optional built-in sync server. Bring your own AI key.",
   "private": true,
   "license": "AGPL-3.0-or-later",

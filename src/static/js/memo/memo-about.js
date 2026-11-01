@@ -95,8 +95,8 @@
     if (btn) btn.addEventListener('click', open);
     var close = document.getElementById('aboutCloseBtn');
     if (close) close.addEventListener('click', function () { var d = dlg(); if (d) d.close(); });
-    // Credit links open in the system browser, not inside the app's WebView.
-    document.querySelectorAll('#aboutDlg a[target="_blank"]').forEach(function (link) {
+    // Credit and server links open in the system browser, not inside the app's WebView.
+    document.querySelectorAll('#aboutDlg a[target="_blank"], .server-get-link a[target="_blank"]').forEach(function (link) {
       link.addEventListener('click', function (event) {
         event.preventDefault();
         global.open(event.currentTarget.href, '_blank', 'noopener');

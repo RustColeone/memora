@@ -1,6 +1,6 @@
 {
   "name": "memora",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "description": "Memora – self-hosted memo/finance/planner personal database app (Flask server + Capacitor client)",
   "private": true,
   "license": "AGPL-3.0-or-later",

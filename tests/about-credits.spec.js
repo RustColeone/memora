@@ -10,6 +10,57 @@ async function openAbout(page, app = 'index.html') {
   return about;
 }
 
+test.describe('Server Sync settings', () => {
+  const REPO = 'https://github.com/RustColeone/memora';
+  async function serverLink(page, app) {
+    await page.goto(`/${app}`);
+    await page.waitForFunction(() => window.MemoShell && window.MemoAbout, null, { timeout: 15000 });
+    await page.evaluate(() => {
+      window.opened = [];
+      window.open = (url, target) => { window.opened.push([url, target]); return null; };
+    });
+    await page.click('#hamburgerBtn');
+    await page.click('#mobileSettingsBtn');
+    await expect(page.locator('#settingsDlg')).toHaveAttribute('open', '');
+    // Memos and Finance fold their settings sections; Planner shows them open.
+    const section = page.locator('#serverSyncSection');
+    if (await section.evaluate((el) => el.classList.contains('collapsed'))) await section.locator('h3').click();
+    return section.locator('.server-get-link');
+  }
+
+  for (const app of ['index.html', 'finance.html', 'planner.html']) {
+    test(`${app}: says where to get the server and opens it in the system browser`, async ({ page }) => {
+      const line = await serverLink(page, app);
+      await expect(line).toBeVisible();
+      await expect(line).toContainText('host your own for free');
+      await expect(line.locator('a')).toHaveAttribute('href', REPO);
+      await line.locator('a').click();
+      expect(await page.evaluate(() => window.opened)).toEqual([[REPO, '_blank']]);
+      expect(new URL(page.url()).pathname).toBe(`/${app}`);
+    });
+  }
+
+  test('fits a phone screen without sideways scrolling', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    const line = await serverLink(page, 'index.html');
+    await expect(line).toBeVisible();
+    const box = await line.evaluate((el) => {
+      const wide = el.closest('.content') || el.parentElement;
+      return { overflow: wide.scrollWidth - wide.clientWidth };
+    });
+    expect(box.overflow).toBeLessThanOrEqual(0);
+  });
+
+  test.describe('in Chinese', () => {
+    test.use({ locale: 'zh-CN' });
+    test('the line is localized and the address stays readable', async ({ page }) => {
+      const line = await serverLink(page, 'index.html');
+      await expect(line).toContainText('你可以免费自建');
+      await expect(line.locator('a')).toHaveText('github.com/RustColeone/memora');
+    });
+  });
+});
+
 test.describe('About', () => {
   for (const app of ['index.html', 'finance.html', 'planner.html']) {
     test(`${app}: opens from the menu, closes the drawer and shows the version`, async ({ page }) => {

@@ -4370,6 +4370,8 @@ body.select-mode .floating { opacity: 0; pointer-events: none; }
 .about-credits .about-honor + h4 { margin-top: 10px; }
 .about-policy { text-align: center; font-size: 13px; margin: 4px 0 0; }
 .about-policy a { color: var(--accent); }
+.server-get-link { overflow-wrap: anywhere; }
+.server-get-link a { color: var(--accent); }
 .about-version { text-align: center; font-size: 12px; margin: 2px 0 0; }
 
 /* Drawer swipe (memo-drawer-gestures.js): no transitions while following the finger. */
